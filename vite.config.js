@@ -6,6 +6,10 @@ export default defineConfig({
     server: {
         port: 5173,
         proxy: {
+            '/api': {
+                target: 'http://localhost:3001',
+                changeOrigin: true,
+            },
             '/ollama': {
                 target: process.env.VITE_OLLAMA_URL || 'http://localhost:11434',
                 changeOrigin: true,

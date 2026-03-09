@@ -1,17 +1,92 @@
 /**
- * Molt-Hive ChatArea Component
- * Message view, input, typewriter effect, tag chips.
- * User messages right-aligned, agent messages left-aligned, system messages amber.
+ * Molt-Hive ChatArea Component (Agentic Version)
+ * Messages, tool execution blocks, loop status, autonomous toggle.
  */
 
 import React, { useState, useRef, useEffect } from 'react'
 import { C, FM, FS, chipStyle, inputStyle } from './styles.js'
 
+// ─── Tool Execution Block ───
+function ToolBlock({ msg }) {
+    const [expanded, setExpanded] = useState(false)
+    const isDone = msg.status === 'done'
+    const isSuccess = isDone && msg.result?.success
+    const statusColor = !isDone ? C.amber : isSuccess ? C.green : C.red
+    const statusIcon = !isDone ? '⟳' : isSuccess ? '✓' : '✗'
+
+    // Format result for display
+    const formatResult = (result) => {
+        if (!result) return 'No result'
+        const data = result.result || result
+        if (typeof data === 'string') return data
+        if (data.stdout) return data.stdout + (data.stderr ? `\nSTDERR: ${data.stderr}` : '')
+        if (data.content) return typeof data.content === 'string' ? data.content : JSON.stringify(data.content, null, 2)
+        if (data.output) return data.output
+        if (data.items) return data.items.map(i => `${i.type === 'directory' ? '📁' : '📄'} ${i.name}`).join('\n')
+        if (data.results) return data.results.map((r, i) => `[${i + 1}] ${r.title}\n    ${r.snippet}`).join('\n\n')
+        if (data.error) return `Error: ${data.error}`
+        return JSON.stringify(data, null, 2)
+    }
+
+    return (
+        <div style={{
+            margin: '6px 0', borderRadius: 8,
+            border: `1px solid ${statusColor}33`,
+            background: `${statusColor}08`,
+            animation: 'mh-fadein 0.2s ease',
+            overflow: 'hidden',
+        }}>
+            {/* Header */}
+            <div
+                onClick={() => isDone && setExpanded(!expanded)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 12px', cursor: isDone ? 'pointer' : 'default',
+                }}
+            >
+                <span style={{
+                    fontFamily: FM, fontSize: 12, color: statusColor, fontWeight: 600,
+                    animation: !isDone ? 'mh-pulse 1s ease infinite' : 'none',
+                }}>{statusIcon}</span>
+                <span style={{
+                    fontFamily: FM, fontSize: 11, fontWeight: 600, color: C.text,
+                }}>TOOL: {msg.toolName}</span>
+                <span style={{
+                    fontFamily: FM, fontSize: 9, color: C.textD,
+                    flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{typeof msg.params === 'object' ? JSON.stringify(msg.params).slice(0, 80) : ''}</span>
+                {isDone && (
+                    <span style={{ fontFamily: FM, fontSize: 9, color: C.textD }}>
+                        {expanded ? '▾' : '▸'}
+                    </span>
+                )}
+            </div>
+
+            {/* Expanded result */}
+            {expanded && isDone && (
+                <div style={{
+                    padding: '0 12px 10px',
+                    maxHeight: 300, overflowY: 'auto',
+                }}>
+                    <pre style={{
+                        fontFamily: FM, fontSize: 10, color: C.textD,
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        margin: 0, lineHeight: 1.5,
+                        background: C.bg, borderRadius: 6, padding: 10,
+                    }}>{formatResult(msg.result)}</pre>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Message Bubble ───
 function MessageBubble({ msg, agent }) {
     const isUser = msg.role === 'user'
     const isSystem = msg.role === 'system'
-    const isAgent = msg.role === 'assistant'
+    const isTool = msg.role === 'tool'
+
+    if (isTool) return <ToolBlock msg={msg} />
 
     const avatarBg = isUser ? C.indigo : isSystem ? C.amber : (agent?.color || C.sky)
     const avatarText = isUser ? 'you' : isSystem ? '⚙' : (agent?.icon || '◈')
@@ -30,7 +105,6 @@ function MessageBubble({ msg, agent }) {
             maxWidth: '85%',
             alignSelf: isUser ? 'flex-end' : 'flex-start',
         }}>
-            {/* Avatar */}
             <div style={{
                 width: 28, height: 28, borderRadius: '50%',
                 background: `${avatarBg}22`,
@@ -40,31 +114,23 @@ function MessageBubble({ msg, agent }) {
                 fontWeight: 600, flexShrink: 0,
             }}>{avatarText}</div>
 
-            {/* Content */}
             <div>
-                {/* Agent name label */}
-                {isAgent && agent && (
+                {msg.role === 'assistant' && agent && (
                     <div style={{
                         fontFamily: FM, fontSize: 10, fontWeight: 600,
                         color: agent.color || C.sky, marginBottom: 4,
                     }}>{agent.name}</div>
                 )}
 
-                {/* Message text */}
                 <div style={{
                     background: bubbleBg,
                     border: `1px solid ${bubbleBorder}`,
                     borderRadius: isUser ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
                     padding: '10px 14px',
-                    fontFamily: font,
-                    fontSize,
-                    lineHeight: 1.6,
-                    color: C.text,
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
+                    fontFamily: font, fontSize, lineHeight: 1.6,
+                    color: C.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                 }}>{msg.content}</div>
 
-                {/* Tags */}
                 {msg.tags && msg.tags.length > 0 && (
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                         {msg.tags.map((tag, i) => {
@@ -73,13 +139,13 @@ function MessageBubble({ msg, agent }) {
                                 'signal sent': C.green,
                                 compressed: C.sky,
                                 evolved: C.amber,
+                                'task complete': C.green,
                             }
                             const color = tagColors[tag] || C.textD
                             return (
                                 <span key={i} style={{
                                     ...chipStyle,
-                                    background: `${color}15`,
-                                    color,
+                                    background: `${color}15`, color,
                                     border: `1px solid ${color}33`,
                                 }}>{tag}</span>
                             )
@@ -92,7 +158,7 @@ function MessageBubble({ msg, agent }) {
 }
 
 // ─── Thinking Indicator ───
-function ThinkingIndicator({ agent }) {
+function ThinkingIndicator({ agent, loopStatus }) {
     return (
         <div style={{
             display: 'flex', gap: 10, alignItems: 'center',
@@ -105,7 +171,7 @@ function ThinkingIndicator({ agent }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 11, color: agent?.color || C.sky, fontFamily: FM,
             }}>{agent?.icon || '◈'}</div>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 {[0, 1, 2].map(i => (
                     <div key={i} style={{
                         width: 6, height: 6, borderRadius: '50%',
@@ -113,18 +179,29 @@ function ThinkingIndicator({ agent }) {
                         animation: `mh-pulse 1s ease ${i * 0.2}s infinite`,
                     }} />
                 ))}
+                {loopStatus && (
+                    <span style={{
+                        fontFamily: FM, fontSize: 10, color: C.textD, marginLeft: 8,
+                    }}>
+                        iteration {loopStatus.iteration} · {loopStatus.action}
+                    </span>
+                )}
             </div>
         </div>
     )
 }
 
 // ─── Main ChatArea ───
-export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, hotLimit }) {
+export default function ChatArea({
+    messages, agent, isBusy, onSend, onCancel,
+    hotCount, hotLimit,
+    autonomousMode, onToggleAutonomous,
+    loopStatus, serverOnline,
+}) {
     const [input, setInput] = useState('')
     const messagesEndRef = useRef(null)
     const textareaRef = useRef(null)
 
-    // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages, isBusy])
@@ -134,9 +211,7 @@ export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, ho
         if (!text || isBusy) return
         onSend(text)
         setInput('')
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto'
-        }
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
     }
 
     const handleKeyDown = (e) => {
@@ -146,7 +221,6 @@ export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, ho
         }
     }
 
-    // Auto-resize textarea
     const handleInput = (e) => {
         setInput(e.target.value)
         const ta = e.target
@@ -155,10 +229,7 @@ export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, ho
     }
 
     return (
-        <div style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
-            minWidth: 0, background: C.bg,
-        }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: C.bg }}>
             {/* Messages */}
             <div style={{
                 flex: 1, overflowY: 'auto', padding: '20px 24px',
@@ -167,34 +238,48 @@ export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, ho
                 {messages.map((msg, i) => (
                     <MessageBubble key={i} msg={msg} agent={agent} />
                 ))}
-                {isBusy && <ThinkingIndicator agent={agent} />}
+                {isBusy && <ThinkingIndicator agent={agent} loopStatus={loopStatus} />}
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* Cancel button during execution */}
+            {isBusy && (
+                <div style={{
+                    padding: '6px 16px', background: C.surface,
+                    borderTop: `1px solid ${C.border}`,
+                    display: 'flex', justifyContent: 'center',
+                }}>
+                    <button
+                        onClick={onCancel}
+                        style={{
+                            background: `${C.red}15`, border: `1px solid ${C.red}44`,
+                            borderRadius: 6, color: C.red,
+                            fontFamily: FM, fontSize: 11, fontWeight: 600,
+                            padding: '6px 20px', cursor: 'pointer',
+                            transition: 'all 0.2s',
+                        }}
+                    >■ STOP</button>
+                </div>
+            )}
+
             {/* Input Area */}
             <div style={{
-                background: C.surface,
-                borderTop: `1px solid ${C.border}`,
+                background: C.surface, borderTop: `1px solid ${C.border}`,
                 padding: '12px 16px',
             }}>
-                <div style={{
-                    display: 'flex', gap: 8, alignItems: 'flex-end',
-                }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <textarea
                         ref={textareaRef}
                         value={input}
                         onChange={handleInput}
                         onKeyDown={handleKeyDown}
-                        placeholder={`Message ${agent?.name || 'agent'}...`}
+                        placeholder={`${autonomousMode ? '🤖 Autonomous' : '💬 Chat'} — Message ${agent?.name || 'agent'}...`}
                         rows={2}
                         style={{
-                            ...inputStyle,
-                            resize: 'none',
-                            minHeight: 40,
-                            maxHeight: 120,
+                            ...inputStyle, resize: 'none',
+                            minHeight: 40, maxHeight: 120,
                             borderColor: isBusy ? C.textF : (agent?.color || C.sky) + '44',
-                            fontFamily: FM,
-                            fontSize: 13,
+                            fontFamily: FM, fontSize: 13,
                         }}
                     />
                     <button
@@ -209,17 +294,45 @@ export default function ChatArea({ messages, agent, isBusy, onSend, hotCount, ho
                             color: input.trim() && !isBusy ? '#000' : C.textD,
                             fontSize: 16, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            flexShrink: 0,
-                            transition: 'all 0.2s',
+                            flexShrink: 0, transition: 'all 0.2s',
                         }}
                     >↑</button>
                 </div>
 
+                {/* Footer with toggles */}
                 <div style={{
-                    fontFamily: FM, fontSize: 9, color: C.textF,
-                    marginTop: 6, textAlign: 'center',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    marginTop: 6,
                 }}>
-                    ↵ send · memory auto-compresses · context fixed · knowledge ∞ · ctx {hotCount}/{hotLimit}
+                    <div style={{ fontFamily: FM, fontSize: 9, color: C.textF }}>
+                        ↵ send · ctx {hotCount}/{hotLimit} · knowledge ∞
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                        {/* Server status */}
+                        <div style={{
+                            fontFamily: FM, fontSize: 9, color: serverOnline ? C.green : C.red,
+                            display: 'flex', alignItems: 'center', gap: 4,
+                        }}>
+                            <div style={{
+                                width: 5, height: 5, borderRadius: '50%',
+                                background: serverOnline ? C.green : C.red,
+                            }} />
+                            {serverOnline ? 'tools' : 'no tools'}
+                        </div>
+
+                        {/* Autonomous toggle */}
+                        <button
+                            onClick={onToggleAutonomous}
+                            style={{
+                                fontFamily: FM, fontSize: 9, fontWeight: 600,
+                                padding: '3px 8px', borderRadius: 4,
+                                border: `1px solid ${autonomousMode ? C.sky + '55' : C.border}`,
+                                background: autonomousMode ? `${C.sky}15` : 'transparent',
+                                color: autonomousMode ? C.sky : C.textD,
+                                cursor: 'pointer', transition: 'all 0.2s',
+                            }}
+                        >{autonomousMode ? '🤖 AUTO' : '💬 CHAT'}</button>
+                    </div>
                 </div>
             </div>
         </div>

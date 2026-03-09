@@ -7,25 +7,28 @@
  * - Sibling agents list
  * - Last 5 WARM summaries (shared memory)
  * - Last 6 COLD patterns (shared memory)
- * - Behavioral directives (CRYSTALLIZE, SIGNAL, self-evolution)
+ * - Available tools and skills
+ * - Behavioral directives (CRYSTALLIZE, SIGNAL, TOOL_CALL, TASK_COMPLETE)
  * - Operating principles
  */
 
 import { getWarmForPrompt, getColdForPrompt, WARM_IN_PROMPT, COLD_IN_PROMPT } from './memory.js'
+import { getToolPromptBlock } from './tools.js'
+import { getSkillsPromptBlock } from './skills.js'
 
 /**
  * Build the full system prompt for an agent.
- * Called on every LLM invocation to ensure the agent has current context.
- * 
  * @param {Object} params
- * @param {Object} params.agent - The active agent
- * @param {Array} params.allAgents - All parent agents in the hive
- * @param {Array} params.warmMemory - WARM summaries to inject
- * @param {Array} params.coldMemory - COLD patterns to inject
- * @param {string} params.llmName - Current LLM provider/model string
- * @returns {string} Complete system prompt
+ * @param {Object} params.agent
+ * @param {Array} params.allAgents
+ * @param {Array} params.warmMemory
+ * @param {Array} params.coldMemory
+ * @param {string} params.llmName
+ * @param {boolean} params.includeTools - Whether to include tool instructions
+ * @param {string} params.skillsBlock - Pre-formatted skills text
+ * @returns {string}
  */
-export function buildSystemPrompt({ agent, allAgents, warmMemory, coldMemory, llmName }) {
+export function buildSystemPrompt({ agent, allAgents, warmMemory, coldMemory, llmName, includeTools = false, skillsBlock = '' }) {
     const sections = []
 
     // ─── Identity ───
@@ -70,8 +73,44 @@ These are proven patterns extracted from past sessions:
 ${coldText}`)
     }
 
+    // ─── Tools ───
+    if (includeTools) {
+        const toolBlock = getToolPromptBlock()
+        sections.push(`# AVAILABLE TOOLS
+You have access to the following tools. To use a tool, write a TOOL_CALL directive:
+
+TOOL_CALL: tool_name {"param1": "value1", "param2": "value2"}
+
+IMPORTANT RULES:
+- You can make MULTIPLE tool calls in a single response
+- After each tool call, you will receive a TOOL_RESULT with the output
+- Use the results to inform your next action
+- When your task is complete, write: TASK_COMPLETE: [summary of what you did]
+- If you need human input, write: NEEDS_HUMAN: [your question]
+- If you don't know how to do something, RESEARCH IT FIRST using web_search
+
+## Tool Reference
+
+${toolBlock}`)
+
+        // ─── Skills ───
+        if (skillsBlock) {
+            sections.push(`# AVAILABLE SKILLS
+These are pre-learned workflows you can draw from:
+${skillsBlock}
+You can learn new skills by writing: LEARN_SKILL: name | description | triggers: word1, word2`)
+        }
+    }
+
     // ─── Behavioral Directives ───
     sections.push(`# BEHAVIORAL DIRECTIVES
+
+## How to Operate
+- You are an AUTONOMOUS AGENT — you can take actions, not just chat.
+- When given a task, THINK about what you need, then USE TOOLS to accomplish it.
+- If you don't know how to do something, RESEARCH IT first (web_search), then do it.
+- You can install packages (npm_install), write code (file_write), run commands (shell_execute), and call APIs (http_request).
+- Break complex tasks into steps. Execute each step. Observe the result. Adapt.
 
 ## How to Speak
 - Speak as ${agent.name}, not as an assistant. You ARE this agent.
@@ -88,17 +127,11 @@ When you identify a reusable pattern, insight, or learning, write:
 CRYSTALLIZE: [topic name]
 This will extract and store a permanent pattern in the Hive's shared brain.
 All sibling agents will have access to it on their next message.
-Use this when: you discover a repeating pattern, learn something important, or solve a problem in a way that could help later.
 
 ## SIGNAL Directive
 When a sibling agent should know something, write:
 SIGNAL [AgentName]: [message]
 This broadcasts directly to that agent's signal bus — no master mediation.
-Use this for: insights that impact another agent's work, alerts, pattern discoveries, coordination.
-
-## Sub-Agent Routing
-When a task fits a sub-agent's specialty better, route it by referencing them naturally.
-Available sub-agents: ${(agent.subAgents || []).join(', ') || 'none'}
 
 ## Self-Evolution
 You evolve through molts. Every ${15} runs, your generation increments.
@@ -107,29 +140,36 @@ If you notice performance issues, you can suggest restructuring.`)
 
     // ─── Operating Principles ───
     sections.push(`# OPERATING PRINCIPLES
-1. Structure over prompting — intelligence lives in the graph, not in any single response.
-2. Compress, never discard — every older message becomes a summary, every error becomes a pattern.
-3. Evolve continuously — each generation should be measurably better than the last.
-4. Share knowledge laterally — crystallize patterns so siblings benefit.
-5. Maintain goal alignment — if you notice drift from the original objective, flag it.
-6. Humans in the loop — respect the trust dial. Escalate when unsure.`)
+1. ACT, don't just talk — when given a task, use your tools to accomplish it.
+2. Research first — if you don't know how, search the web before guessing.
+3. Compress, never discard — every older message becomes a summary, every error becomes a pattern.
+4. Evolve continuously — each generation should be measurably better than the last.
+5. Share knowledge laterally — crystallize patterns so siblings benefit.
+6. Maintain goal alignment — if you notice drift from the original objective, flag it.
+7. Humans in the loop — respect the trust dial. Use NEEDS_HUMAN when unsure about risky actions.`)
 
     return sections.join('\n\n')
 }
 
 /**
- * Build the system prompt with auto-loaded memory.
- * Convenience wrapper that loads WARM/COLD from storage.
- * 
+ * Build the system prompt with auto-loaded memory and tools.
  * @param {Object} params
- * @param {Object} params.agent - The active agent
- * @param {Array} params.allAgents - All parent agents
- * @param {string} params.llmName - LLM provider/model string
- * @returns {Promise<string>} Complete system prompt
+ * @param {Object} params.agent
+ * @param {Array} params.allAgents
+ * @param {string} params.llmName
+ * @param {boolean} params.includeTool - Whether to include tool definitions
+ * @returns {Promise<string>}
  */
-export async function buildSystemPromptWithMemory({ agent, allAgents, llmName }) {
+export async function buildSystemPromptWithMemory({ agent, allAgents, llmName, includeTool = false }) {
     const warmMemory = await getWarmForPrompt()
     const coldMemory = await getColdForPrompt()
+
+    let skillsBlock = ''
+    if (includeTool) {
+        try {
+            skillsBlock = await getSkillsPromptBlock()
+        } catch { /* skills are optional */ }
+    }
 
     return buildSystemPrompt({
         agent,
@@ -137,5 +177,7 @@ export async function buildSystemPromptWithMemory({ agent, allAgents, llmName })
         warmMemory,
         coldMemory,
         llmName,
+        includeTools: includeTool,
+        skillsBlock,
     })
 }

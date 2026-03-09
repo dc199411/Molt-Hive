@@ -1,11 +1,13 @@
 /**
- * Molt-Hive — Root Application Shell
- * Wires the agent engine (src/engine/) to the UI components (src/components/).
+ * Molt-Hive — Root Application Shell (Agentic Version)
+ * Wires the agent engine to the UI with full tool execution support.
  * 
- * This is the orchestrator:
- * - Loads/persists all state from storage
- * - Routes messages through the engine (memory, signals, evolution)
- * - Manages active agent, hive config, and UI state
+ * Handles:
+ * - State loading/persistence
+ * - Agentic loop (plan → act → observe → repeat)
+ * - Tool execution display
+ * - Autonomous mode toggle
+ * - Server health monitoring
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
@@ -32,27 +34,44 @@ import {
 import { buildSystemPromptWithMemory } from './engine/systemPrompt.js'
 import { parseSignals, broadcastSignals, getSignals } from './engine/signals.js'
 import { evolveAgent } from './engine/evolution.js'
+import { checkServerHealth } from './engine/toolRunner.js'
+import { runAgentLoop } from './engine/agentLoop.js'
 
 export default function App() {
     // ─── State ───
     const [launched, setLaunched] = useState(false)
     const [loading, setLoading] = useState(true)
-    const [config, setConfig] = useState(null)       // {hiveName, provider, model, apiKey}
+    const [config, setConfig] = useState(null)
     const [agents, setAgents] = useState([])
     const [activeAgentId, setActiveAgentId] = useState(null)
     const [chatMessages, setChatMessages] = useState([])
     const [isBusy, setIsBusy] = useState(false)
     const [sidebarOpen, setSidebarOpen] = useState(true)
-    const [rightTab, setRightTab] = useState('memory')  // 'memory' | 'network'
+    const [rightTab, setRightTab] = useState('memory')
     const [showSpawnModal, setShowSpawnModal] = useState(false)
     const [warmMemory, setWarmMemory] = useState([])
     const [coldMemory, setColdMemory] = useState([])
     const [signals, setSignals] = useState([])
     const [hotCount, setHotCount] = useState(0)
+    const [serverOnline, setServerOnline] = useState(false)
+    const [autonomousMode, setAutonomousMode] = useState(true)
+    const [loopStatus, setLoopStatus] = useState(null) // {iteration, action}
+    const cancelRef = useRef(false)
 
     const activeAgent = agents.find(a => a.id === activeAgentId) || null
 
-    // ─── Load persisted state on mount ───
+    // ─── Server health check ───
+    useEffect(() => {
+        async function checkServer() {
+            const health = await checkServerHealth()
+            setServerOnline(health.ok)
+        }
+        checkServer()
+        const interval = setInterval(checkServer, 15000)
+        return () => clearInterval(interval)
+    }, [])
+
+    // ─── Load persisted state ───
     useEffect(() => {
         async function load() {
             try {
@@ -65,20 +84,16 @@ export default function App() {
                     setActiveAgentId(savedAgents[0].id)
                     setLaunched(true)
 
-                    // Load chat for first agent
                     const chat = await getChatHistory(savedAgents[0].id)
                     setChatMessages(chat)
 
-                    // Load memory state
                     const mem = await getMemoryState()
                     setWarmMemory(mem.warm)
                     setColdMemory(mem.cold)
 
-                    // Load signals
                     const sigs = await getSignals()
                     setSignals(sigs)
 
-                    // Calculate hot count
                     const raw = await getRawHistory(savedAgents[0].id)
                     setHotCount(Math.min(raw.length, HOT_LIMIT))
                 }
@@ -90,7 +105,7 @@ export default function App() {
         load()
     }, [])
 
-    // ─── Launch handler (from LaunchScreen) ───
+    // ─── Launch handler ───
     const handleLaunch = useCallback(async ({ hiveName, provider, model, apiKey, agentName, agentRole }) => {
         try {
             const newConfig = { hiveName, provider, model, apiKey }
@@ -100,18 +115,16 @@ export default function App() {
             const agentsList = [agent]
             await db.set('hive-agents', agentsList)
 
-            // Create initial chat message
             const initMsg = {
                 role: 'system',
                 content: `🧠 Welcome to ${hiveName}. Agent ${agentName} (${agentRole}) is online — Generation 1.
 Memory: HOT (last ${HOT_LIMIT} messages) · WARM (auto-compressed) · COLD (crystallized patterns).
-Write naturally. Your context never fills. Knowledge is infinite.`,
+Tools: ${serverOnline ? '✅ Server online — full tool access' : '⚠ Tool server not detected. Start it with: npm run server'}
+Write naturally. Give tasks. Your agent will research, plan, and execute autonomously.`,
                 ts: new Date().toISOString(),
             }
-            const chats = { [agent.id]: [initMsg] }
-            const rawHist = { [agent.id]: [] }
-            await db.set('hive-chats', chats)
-            await db.set('hive-rawhist', rawHist)
+            await db.set('hive-chats', { [agent.id]: [initMsg] })
+            await db.set('hive-rawhist', { [agent.id]: [] })
 
             setConfig(newConfig)
             setAgents(agentsList)
@@ -122,9 +135,9 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
         } catch (e) {
             console.error('[MoltHive] Launch failed:', e)
         }
-    }, [])
+    }, [serverOnline])
 
-    // ─── Switch active agent ───
+    // ─── Switch agent ───
     const handleSelectAgent = useCallback(async (agentId) => {
         setActiveAgentId(agentId)
         try {
@@ -137,20 +150,16 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
         }
     }, [])
 
-    // ─── Spawn new agent ───
+    // ─── Spawn agent ───
     const handleSpawn = useCallback(async ({ name, role }) => {
         try {
             const { agent, agents: updatedAgents } = await spawnAgent({ name, role }, agents)
             setAgents(updatedAgents)
             setShowSpawnModal(false)
-
-            // Switch to new agent
             setActiveAgentId(agent.id)
             const chat = await getChatHistory(agent.id)
             setChatMessages(chat)
             setHotCount(0)
-
-            // Refresh memory state (new agent inherits shared brain)
             const mem = await getMemoryState()
             setWarmMemory(mem.warm)
             setColdMemory(mem.cold)
@@ -159,110 +168,131 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
         }
     }, [agents])
 
-    // ─── Send message — the core flow ───
+    // ═══════════════════════════════════════════════════════════
+    //  SEND MESSAGE — The Agentic Flow
+    // ═══════════════════════════════════════════════════════════
     const handleSend = useCallback(async (text) => {
         if (!activeAgent || !config || isBusy) return
-
         setIsBusy(true)
+        cancelRef.current = false
+
         const llmCfg = { provider: config.provider, apiKey: config.apiKey, model: config.model }
 
+        // 1. Add user message immediately
+        const userMsg = { role: 'user', content: text, ts: new Date().toISOString() }
+        await appendChat(activeAgent.id, userMsg)
+        await appendRawHistory(activeAgent.id, userMsg)
+        setChatMessages(prev => [...prev, userMsg])
+
+        // 2. Build conversation context (HOT messages)
+        const rawHistory = await getRawHistory(activeAgent.id)
+        const hotMsgs = getHotMessages(rawHistory)
+        setHotCount(hotMsgs.length)
+
         try {
-            // 1. Append user message to chat (immediate)
-            const userMsg = {
-                role: 'user',
-                content: text,
-                ts: new Date().toISOString(),
-            }
-            await appendChat(activeAgent.id, userMsg)
-            await appendRawHistory(activeAgent.id, userMsg)
-            setChatMessages(prev => [...prev, userMsg])
-
-            // 2. Build HOT messages for LLM
-            const rawHistory = await getRawHistory(activeAgent.id)
-            const hotMsgs = getHotMessages(rawHistory)
-            setHotCount(hotMsgs.length)
-
-            // 3. Build system prompt with memory
-            const systemPrompt = await buildSystemPromptWithMemory({
+            // 3. Run the agentic loop
+            await runAgentLoop({
+                task: text,
                 agent: activeAgent,
                 allAgents: agents,
-                llmName: `${config.provider} / ${config.model}`,
-            })
+                llmCfg,
+                conversationHistory: hotMsgs,
+                maxIterations: autonomousMode ? 20 : 1,
+                callbacks: {
+                    onThinking: (iteration) => {
+                        setLoopStatus({ iteration, action: 'thinking' })
+                    },
 
-            // 4. Call LLM
-            const reply = await llmCall({
-                provider: config.provider,
-                apiKey: config.apiKey,
-                model: config.model,
-                system: systemPrompt,
-                messages: hotMsgs,
-                maxTokens: 900,
-            })
-
-            // 5. Process reply
-            const tags = []
-
-            // 5a. Check for CRYSTALLIZE directives
-            const crystals = await runCrystallization(reply, text, llmCfg, activeAgent.id)
-            if (crystals.length > 0) {
-                tags.push('crystallized')
-            }
-
-            // 5b. Check for SIGNAL directives
-            const parsedSignals = parseSignals(reply, activeAgent.id, activeAgent.name)
-            if (parsedSignals.length > 0) {
-                await broadcastSignals(parsedSignals)
-                tags.push('signal sent')
-                const updatedSignals = await getSignals()
-                setSignals(updatedSignals)
-            }
-
-            // 5c. Append agent reply to chat
-            const agentMsg = {
-                role: 'assistant',
-                content: reply,
-                ts: new Date().toISOString(),
-                tags: tags.length > 0 ? tags : undefined,
-            }
-            await appendChat(activeAgent.id, agentMsg)
-            await appendRawHistory(activeAgent.id, agentMsg)
-            setChatMessages(prev => [...prev, agentMsg])
-
-            // 5d. Run background compression (non-blocking)
-            runCompressionCycle(activeAgent.id, llmCfg).then(async (result) => {
-                if (result.compressed) {
-                    const mem = await getMemoryState()
-                    setWarmMemory(mem.warm)
-                    setColdMemory(mem.cold)
-
-                    // Add compressed tag to the last agent message in chat display
-                    setChatMessages(prev => {
-                        const updated = [...prev]
-                        const lastAgent = [...updated].reverse().find(m => m.role === 'assistant')
-                        if (lastAgent) {
-                            lastAgent.tags = [...(lastAgent.tags || []), 'compressed']
+                    onToolCall: (toolName, params) => {
+                        setLoopStatus({ iteration: loopStatus?.iteration, action: `${toolName}` })
+                        const toolMsg = {
+                            role: 'tool',
+                            toolName,
+                            params,
+                            status: 'running',
+                            ts: new Date().toISOString(),
                         }
-                        return updated
-                    })
-                }
-            }).catch(e => console.warn('[MoltHive] Background compression error:', e))
+                        setChatMessages(prev => [...prev, toolMsg])
+                    },
 
-            // 5e. Evolve agent
+                    onToolResult: (toolName, result) => {
+                        setChatMessages(prev => {
+                            const updated = [...prev]
+                            // Find the last tool message for this tool and update it
+                            for (let i = updated.length - 1; i >= 0; i--) {
+                                if (updated[i].role === 'tool' && updated[i].toolName === toolName && updated[i].status === 'running') {
+                                    updated[i] = { ...updated[i], status: 'done', result }
+                                    break
+                                }
+                            }
+                            return updated
+                        })
+                    },
+
+                    onMessage: async (text, tags) => {
+                        const agentMsg = {
+                            role: 'assistant',
+                            content: text,
+                            ts: new Date().toISOString(),
+                            tags,
+                        }
+                        await appendChat(activeAgent.id, agentMsg)
+                        await appendRawHistory(activeAgent.id, agentMsg)
+                        setChatMessages(prev => [...prev, agentMsg])
+
+                        // Handle CRYSTALLIZE/SIGNAL in message
+                        if (text) {
+                            const crystals = await runCrystallization(text, '', llmCfg, activeAgent.id)
+                            const parsedSignals = parseSignals(text, activeAgent.id, activeAgent.name)
+                            if (parsedSignals.length > 0) {
+                                await broadcastSignals(parsedSignals)
+                                setSignals(await getSignals())
+                            }
+                        }
+                    },
+
+                    onComplete: async (summary) => {
+                        setLoopStatus(null)
+                        // Background compression
+                        runCompressionCycle(activeAgent.id, llmCfg)
+                            .then(async (r) => {
+                                if (r.compressed) {
+                                    const mem = await getMemoryState()
+                                    setWarmMemory(mem.warm)
+                                    setColdMemory(mem.cold)
+                                }
+                            })
+                            .catch(e => console.warn('[MoltHive] Compression error:', e))
+                    },
+
+                    onNeedsHuman: (question) => {
+                        const humanMsg = {
+                            role: 'system',
+                            content: `🤚 Agent paused — needs your input:\n${question}`,
+                            ts: new Date().toISOString(),
+                        }
+                        setChatMessages(prev => [...prev, humanMsg])
+                    },
+
+                    onError: (error) => {
+                        const errorMsg = {
+                            role: 'system',
+                            content: `⚠ Error: ${error}`,
+                            ts: new Date().toISOString(),
+                        }
+                        setChatMessages(prev => [...prev, errorMsg])
+                    },
+
+                    shouldContinue: () => !cancelRef.current,
+                },
+            })
+
+            // Evolve agent after loop completes
             const evolved = evolveAgent(activeAgent, { success: true })
             const updatedAgents = await updateAgent(evolved, agents)
             setAgents(updatedAgents)
 
-            // 5f. Refresh memory state
-            const mem = await getMemoryState()
-            setWarmMemory(mem.warm)
-            setColdMemory(mem.cold)
-
-            // Update hot count
-            const updatedRaw = await getRawHistory(activeAgent.id)
-            setHotCount(Math.min(updatedRaw.length, HOT_LIMIT))
-
         } catch (error) {
-            // User-facing error message
             const errorMsg = {
                 role: 'system',
                 content: `⚠ Error: ${error.message}`,
@@ -271,16 +301,27 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
             await appendChat(activeAgent.id, errorMsg)
             setChatMessages(prev => [...prev, errorMsg])
 
-            // Evolve with failure
             const evolved = evolveAgent(activeAgent, { success: false })
             const updatedAgents = await updateAgent(evolved, agents)
             setAgents(updatedAgents)
         }
 
+        // Refresh memory state
+        const mem = await getMemoryState()
+        setWarmMemory(mem.warm)
+        setColdMemory(mem.cold)
+        const updatedRaw = await getRawHistory(activeAgent.id)
+        setHotCount(Math.min(updatedRaw.length, HOT_LIMIT))
+        setLoopStatus(null)
         setIsBusy(false)
-    }, [activeAgent, agents, config, isBusy])
+    }, [activeAgent, agents, config, isBusy, autonomousMode])
 
-    // ─── Reset handler ───
+    // ─── Cancel loop ───
+    const handleCancel = useCallback(() => {
+        cancelRef.current = true
+    }, [])
+
+    // ─── Reset ───
     const handleReset = useCallback(async () => {
         if (!confirm('Reset entire Hive? All agents, memory, and history will be deleted.')) return
         await resetHive()
@@ -295,31 +336,23 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
         setHotCount(0)
     }, [])
 
-    // ─── Loading state ───
+    // ─── Loading ───
     if (loading) {
         return (
             <div style={{
                 height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 background: C.bg, fontFamily: FM, color: C.textD, fontSize: 12,
-            }}>
-                Loading Molt Hive…
-            </div>
+            }}>Loading Molt Hive…</div>
         )
     }
 
-    // ─── Inject animations ───
     return (
         <>
             <style>{ANIMATIONS_CSS}</style>
-
             {!launched ? (
                 <LaunchScreen onLaunch={handleLaunch} />
             ) : (
-                <div style={{
-                    height: '100vh', display: 'flex', flexDirection: 'column',
-                    background: C.bg, overflow: 'hidden',
-                }}>
-                    {/* Top Bar */}
+                <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'hidden' }}>
                     <TopBar
                         hiveName={config?.hiveName || 'Hive'}
                         agent={activeAgent}
@@ -333,13 +366,12 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
                         sidebarOpen={sidebarOpen}
                         onToggleSidebar={() => setSidebarOpen(p => !p)}
                         onReset={handleReset}
+                        serverOnline={serverOnline}
+                        autonomousMode={autonomousMode}
+                        loopStatus={loopStatus}
                     />
 
-                    {/* Main Layout */}
-                    <div style={{
-                        flex: 1, display: 'flex', overflow: 'hidden',
-                    }}>
-                        {/* Sidebar */}
+                    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
                         <Sidebar
                             agents={agents}
                             activeAgentId={activeAgentId}
@@ -348,27 +380,26 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
                             isOpen={sidebarOpen}
                         />
 
-                        {/* Chat */}
                         <ChatArea
                             messages={chatMessages}
                             agent={activeAgent}
                             isBusy={isBusy}
                             onSend={handleSend}
+                            onCancel={handleCancel}
                             hotCount={hotCount}
                             hotLimit={HOT_LIMIT}
+                            autonomousMode={autonomousMode}
+                            onToggleAutonomous={() => setAutonomousMode(p => !p)}
+                            loopStatus={loopStatus}
+                            serverOnline={serverOnline}
                         />
 
-                        {/* Right Panel */}
                         <div style={{
                             width: 280, background: C.surface,
                             borderLeft: `1px solid ${C.border}`,
-                            display: 'flex', flexDirection: 'column',
-                            flexShrink: 0,
+                            display: 'flex', flexDirection: 'column', flexShrink: 0,
                         }}>
-                            {/* Tab switcher */}
-                            <div style={{
-                                display: 'flex', borderBottom: `1px solid ${C.border}`,
-                            }}>
+                            <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}` }}>
                                 {[
                                     { id: 'memory', label: '◈ Memory' },
                                     { id: 'network', label: '⊕ Network' },
@@ -380,45 +411,26 @@ Write naturally. Your context never fills. Knowledge is infinite.`,
                                             flex: 1, padding: '10px 8px',
                                             background: rightTab === tab.id ? `${C.sky}0a` : 'transparent',
                                             border: 'none',
-                                            borderBottom: rightTab === tab.id
-                                                ? `2px solid ${C.sky}`
-                                                : '2px solid transparent',
+                                            borderBottom: rightTab === tab.id ? `2px solid ${C.sky}` : '2px solid transparent',
                                             color: rightTab === tab.id ? C.sky : C.textD,
                                             fontFamily: FM, fontSize: 11, fontWeight: 600,
-                                            cursor: 'pointer',
-                                            transition: 'all 0.15s',
+                                            cursor: 'pointer', transition: 'all 0.15s',
                                         }}
                                     >{tab.label}</button>
                                 ))}
                             </div>
-
-                            {/* Tab content */}
                             <div style={{ flex: 1, overflow: 'hidden' }}>
                                 {rightTab === 'memory' ? (
-                                    <MemoryPanel
-                                        warmMemory={warmMemory}
-                                        coldMemory={coldMemory}
-                                        hotCount={hotCount}
-                                        hotLimit={HOT_LIMIT}
-                                    />
+                                    <MemoryPanel warmMemory={warmMemory} coldMemory={coldMemory} hotCount={hotCount} hotLimit={HOT_LIMIT} />
                                 ) : (
-                                    <NetworkPanel
-                                        agents={agents}
-                                        activeAgentId={activeAgentId}
-                                        signals={signals}
-                                        onSelectAgent={handleSelectAgent}
-                                    />
+                                    <NetworkPanel agents={agents} activeAgentId={activeAgentId} signals={signals} onSelectAgent={handleSelectAgent} />
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Spawn Modal */}
                     {showSpawnModal && (
-                        <SpawnModal
-                            onSpawn={handleSpawn}
-                            onClose={() => setShowSpawnModal(false)}
-                        />
+                        <SpawnModal onSpawn={handleSpawn} onClose={() => setShowSpawnModal(false)} />
                     )}
                 </div>
             )}

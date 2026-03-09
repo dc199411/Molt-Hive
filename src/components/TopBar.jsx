@@ -1,6 +1,6 @@
 /**
- * Molt-Hive TopBar Component
- * Status bar showing hive name, active agent, stats, LLM badge, and reset.
+ * Molt-Hive TopBar Component (Agentic Version)
+ * Status bar with server indicator, autonomous badge, and loop status.
  */
 
 import React from 'react'
@@ -10,13 +10,14 @@ export default function TopBar({
     hiveName, agent, agents, warmCount, coldCount,
     hotCount, hotLimit, provider, model,
     sidebarOpen, onToggleSidebar, onReset,
+    serverOnline, autonomousMode, loopStatus,
 }) {
     return (
         <div style={{
             height: 44, background: C.surface,
             borderBottom: `1px solid ${C.border}`,
             display: 'flex', alignItems: 'center',
-            padding: '0 16px', gap: 16, flexShrink: 0,
+            padding: '0 16px', gap: 12, flexShrink: 0,
         }}>
             {/* Sidebar Toggle */}
             <button
@@ -57,13 +58,26 @@ export default function TopBar({
                 </div>
             )}
 
+            {/* Loop Status */}
+            {loopStatus && (
+                <div style={{
+                    fontFamily: FM, fontSize: 9, fontWeight: 600,
+                    color: C.amber,
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    animation: 'mh-pulse 1.5s ease infinite',
+                }}>
+                    <span>⟳</span>
+                    <span>iter {loopStatus.iteration} · {loopStatus.action}</span>
+                </div>
+            )}
+
             {/* Spacer */}
             <div style={{ flex: 1 }} />
 
             {/* Stats */}
             <div style={{
                 ...labelStyle, fontSize: 9,
-                display: 'flex', gap: 12, color: C.textD,
+                display: 'flex', gap: 10, color: C.textD,
             }}>
                 <span>{agents?.length || 0} agents</span>
                 <span>·</span>
@@ -74,17 +88,26 @@ export default function TopBar({
                 <span>ctx {hotCount}/{hotLimit}</span>
             </div>
 
-            {/* LLM Badge */}
+            {/* Server Status */}
             <div style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                fontFamily: FM, fontSize: 10, color: C.textD,
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontFamily: FM, fontSize: 9, fontWeight: 600,
+                color: serverOnline ? C.green : C.red,
             }}>
                 <div style={{
                     width: 6, height: 6, borderRadius: '50%',
-                    background: C.green,
-                    animation: 'mh-pulse 2s ease infinite',
+                    background: serverOnline ? C.green : C.red,
+                    animation: serverOnline ? 'mh-pulse 2s ease infinite' : 'none',
                 }} />
-                <span>{provider} / {model?.split('-').slice(0, 2).join('-')}</span>
+                {serverOnline ? 'tools ✓' : 'no server'}
+            </div>
+
+            {/* LLM Badge */}
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontFamily: FM, fontSize: 9, color: C.textD,
+            }}>
+                <span>{provider}/{model?.split('-').slice(0, 2).join('-')}</span>
             </div>
 
             {/* Reset */}
