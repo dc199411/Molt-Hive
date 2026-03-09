@@ -1,77 +1,127 @@
 # 🧠 Molt Hive — Setup Walkthrough
 
-Get from zero to a running AI agent hive in under 20 minutes.
+Get from zero to a fully autonomous agent in under 20 minutes.
 
 ---
 
-## 1. Fork the Repo
-Click the **Fork** button on the GitHub repo page. This creates your own copy you can customize freely.
-
-## 2. Clone It
+## 1. Fork & Clone
 ```bash
 git clone https://github.com/YOUR_USERNAME/molt-hive.git
 cd molt-hive
 ```
 
-## 3. Install Dependencies
+## 2. Install Dependencies
 ```bash
 npm install
 ```
-Takes about 30 seconds. Installs React, Vite, and nothing else — Molt Hive has minimal dependencies by design.
 
-## 4. Set Up Your LLM
-Copy the environment template and add your API key:
+## 3. Set Up Your LLM
 ```bash
 cp .env.example .env
 ```
-Open `.env` and paste your key for any **one** provider. You only need one. For fully offline use, skip this — Ollama needs no key.
+Open `.env` and paste your key for **one** provider:
+- **Groq** (free tier): `VITE_GROQ_API_KEY=gsk_...` — get at [console.groq.com](https://console.groq.com)
+- **Ollama** (fully offline): No key needed — just run `ollama serve`
+- **OpenAI/Anthropic/Mistral**: Paid keys work too
 
-## 5. Launch
+## 4. Launch
 ```bash
-npm run dev
+npm start
 ```
-Open `http://localhost:5173` in your browser. You'll see the Molt Hive launch screen.
+This runs **both** the Vite dev server (port 5173) and the tool server (port 3001). Open `http://localhost:5173`.
 
-## 6. Name Your Hive
-Type a name — Synapse, Atlas, Nexus, Forge, anything. This is the identity your agent network shares. It's displayed in the top bar and used in agent prompts.
+## 5. Setup Wizard (3 steps)
+1. **Name your hive** → Synapse, Atlas, Nexus, Forge…
+2. **Connect LLM** → Select provider, model, paste key, hit Test Connection
+3. **First agent** → Name it, pick a role, click Launch
 
-## 7. Connect Your LLM
-Select your provider from the grid (Anthropic, OpenAI, Groq, Mistral, or Ollama). Choose a model from the dropdown. Paste your API key. Hit **Test Connection** — green means you're ready. For Ollama, just make sure `ollama serve` is running.
+## 6. Using Your Agent
 
-## 8. Meet Your First Agent
-Name your first parent agent and pick a role (Generalist is great for starting). Hit **Launch**. The agent joins the Hive at Generation 1 with fresh memory. Say "hello" — it will respond as itself, aware of its role and capabilities.
+### Chat Mode (💬)
+Type messages. Agent responds like a normal AI but with persistent memory.
 
-## 9. Spawn a Second Agent
-Click **+ Spawn Agent** in the sidebar. Give it a name and a different role (e.g., Research or Engineering). It instantly inherits all WARM and COLD memory from the Hive. Switch between agents by clicking their names in the sidebar.
+### Autonomous Mode (🤖 AUTO)
+Give the agent a **task**. It will:
+- Research how to do it (web search)
+- Install any needed packages
+- Write code, create files, run commands
+- Loop automatically until the task is complete
+- Show each tool execution as a collapsible block in chat
 
-## 10. Understanding Memory
-Open the **◈ Memory** panel on the right. You'll see:
-- **Context budget**: HOT messages (last 8 verbatim) — green bar fills as you chat
-- **Warm tab**: Auto-compressed summaries of older conversations (~120 tokens each)
-- **Crystals tab**: Permanently extracted patterns from CRYSTALLIZE directives
+**Example tasks:**
+- "Create an Express API server with 3 endpoints"
+- "Research the latest Bitcoin price and create a price tracker script"
+- "Set up a Solana wallet and check the balance"
+- "Build a Python script that scrapes headlines from Hacker News"
 
-Your context window stays fixed. Your knowledge grows infinitely.
+### Spawning More Agents
+Click **+ SPAWN AGENT** in the sidebar. New agents instantly inherit all shared memory.
 
-## 11. Triggering a Crystallize
-Ask your agent: *"What patterns should we preserve from this conversation?"* or *"Crystallize any key insights from what we just discussed."* When the agent writes `CRYSTALLIZE: [topic]`, the system extracts a structured pattern and stores it in COLD memory. You'll see a purple **crystallized** chip appear on that message.
+## 7. Available Tools (9)
 
-## 12. Cross-Agent Signals
-With 2+ agents, your agents can signal each other. When an agent writes `SIGNAL [AgentName]: [message]`, it appears instantly in the **⊕ Network** panel's signal feed. Switch to the target agent's chat — they'll have access to the signal in their context.
+| Tool | What It Does |
+|------|-------------|
+| `shell_execute` | Run terminal commands |
+| `file_read` / `file_write` / `file_list` | Filesystem access |
+| `web_search` | Search the web (DuckDuckGo, free) |
+| `web_fetch` | Fetch any URL |
+| `code_execute` | Run JavaScript or Python |
+| `npm_install` | Install npm packages dynamically |
+| `http_request` | Call any API (GET, POST, PUT, DELETE) |
 
-## 13. Deploying to Production
-Pick your platform:
-- **Vercel**: `npm install -g vercel && vercel` — add env vars in dashboard
-- **Netlify**: `npm run build` → drag `dist/` folder to netlify.com/drop
-- **Docker**: `docker build -t molt-hive . && docker run -p 80:80 molt-hive`
+## 8. Memory System
 
-## 14. Reading Your Living Docs
-Three files are maintained as the Hive runs:
-- **agents.md** — Who is running, what generation, what success rate
-- **implementation.md** — Architecture changes, decisions, scan results
-- **tasks.md** — Priority task board, auto-updated by agent activity
+| Tier | What | When |
+|------|------|------|
+| **HOT** | Last 8 messages verbatim | Always in context |
+| **WARM** | Auto-compressed summaries (~120 tokens) | When HOT fills |
+| **COLD** | Crystallized patterns (permanent) | When agent writes `CRYSTALLIZE:` |
 
-You can edit these files directly — agents will read the current state on their next message.
+Context stays **fixed**. Knowledge grows **infinitely**.
+
+## 9. Adding Custom Skills
+
+Skills are reusable tool chains. Edit `src/engine/skills.js` to add your own:
+
+```javascript
+{
+  name: 'my_custom_skill',
+  description: 'What this skill does',
+  triggers: ['trigger word 1', 'trigger word 2'],
+  steps: [
+    { tool: 'web_search', paramTemplate: { query: '{{topic}}' } },
+    { tool: 'code_execute', paramTemplate: { code: '{{script}}' } },
+  ],
+  category: 'custom',
+}
+```
+
+Or let the agent learn skills automatically — when it successfully completes a task using multiple tools, ask it to:
+```
+Crystallize this workflow as a reusable skill.
+LEARN_SKILL: skill_name | description | triggers: word1, word2
+```
+
+## 10. Deploying
+
+### Vercel / Netlify (frontend only)
+```bash
+npm run build
+# Deploy dist/ folder
+```
+
+### Docker (full agent + server)
+```bash
+docker build -t molt-hive .
+docker run -p 3001:3001 molt-hive
+```
+
+### Self-hosted (recommended)
+```bash
+npm install
+npm start   # Runs both Vite + tool server
+```
 
 ---
 
-*That's it. You're running a self-evolving agent hive with infinite memory.* ⭐
+*That's it. You're running an autonomous AI agent with infinite memory, tool access, and hivemind capabilities.* ⭐
