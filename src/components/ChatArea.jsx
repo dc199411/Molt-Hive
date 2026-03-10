@@ -99,7 +99,7 @@ function MessageBubble({ msg, agent }) {
                         {agent.name}
                     </div>
                 )}
-                <div style={{
+                <div className="mh-msg-bubble" style={{
                     background: bubbleBg, border: `1px solid ${bubbleBorder}`,
                     borderRadius: isUser ? '12px 4px 12px 12px' : '4px 12px 12px 12px',
                     padding: '10px 14px', fontFamily: isUser ? FM : FS,
@@ -218,9 +218,10 @@ export default function ChatArea({
             )}
 
             {/* Input Area */}
-            <div style={{ background: C.surface, borderTop: `1px solid ${C.border}`, padding: '12px 16px' }}>
+            <div className="mh-chat-footer" style={{ background: C.surface, borderTop: `1px solid ${C.border}`, padding: '12px 16px' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                     <textarea
+                        className="mh-chat-input"
                         ref={textareaRef}
                         value={input}
                         onChange={handleInput}
@@ -234,6 +235,7 @@ export default function ChatArea({
                         }}
                     />
                     <button
+                        className="mh-send-btn"
                         onClick={handleSend}
                         disabled={!input.trim() || isBusy}
                         style={{
@@ -264,6 +266,7 @@ export default function ChatArea({
 
                         {/* 3-Mode Toggle */}
                         <button
+                            className="mh-mode-btn"
                             onClick={onCycleMode}
                             title={mode.desc}
                             style={{

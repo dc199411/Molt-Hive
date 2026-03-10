@@ -394,11 +394,13 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                         loopStatus={loopStatus}
                     />
 
-                    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+                    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+                        {/* Mobile backdrop */}
+                        {sidebarOpen && <div className="mh-sidebar-backdrop" onClick={() => setSidebarOpen(false)} style={{ display: 'none' }} />}
                         <Sidebar
                             agents={agents}
                             activeAgentId={activeAgentId}
-                            onSelectAgent={handleSelectAgent}
+                            onSelectAgent={(id) => { handleSelectAgent(id); if (window.innerWidth <= 768) setSidebarOpen(false) }}
                             onSpawn={() => setShowSpawnModal(true)}
                             isOpen={sidebarOpen}
                         />
@@ -417,7 +419,7 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                             serverOnline={serverOnline}
                         />
 
-                        <div style={{
+                        <div className="mh-right-panel" style={{
                             width: 280, background: C.surface,
                             borderLeft: `1px solid ${C.border}`,
                             display: 'flex', flexDirection: 'column', flexShrink: 0,

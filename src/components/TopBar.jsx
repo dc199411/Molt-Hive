@@ -75,7 +75,7 @@ export default function TopBar({
             <div style={{ flex: 1 }} />
 
             {/* Stats */}
-            <div style={{
+            <div className="mh-topbar-stats" style={{
                 ...labelStyle, fontSize: 9,
                 display: 'flex', gap: 10, color: C.textD,
             }}>
@@ -103,7 +103,7 @@ export default function TopBar({
             </div>
 
             {/* LLM Badge */}
-            <div style={{
+            <div className="mh-topbar-llm" style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 fontFamily: FM, fontSize: 9, color: C.textD,
             }}>

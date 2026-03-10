@@ -51,7 +51,7 @@ export default function Sidebar({ agents, activeAgentId, onSelectAgent, onSpawn,
     if (!isOpen) return null
 
     return (
-        <div style={{
+        <div className="mh-sidebar" style={{
             width: 220, background: C.surface,
             borderRight: `1px solid ${C.border}`,
             display: 'flex', flexDirection: 'column',

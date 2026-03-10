@@ -234,7 +234,9 @@ const c = (color, text) => `${color}${text}${CLR.reset}`
 async function main() {
     const args = process.argv.slice(2)
     const flags = { forever: args.includes('--forever'), setup: args.includes('--setup'), reset: args.includes('--reset'), help: args.includes('--help') }
-    const taskArg = args.filter(a => !a.startsWith('--')).join(' ').trim()
+    const subcommand = args[0]?.toLowerCase()
+    const SUBCOMMANDS = ['new', 'spawn', 'status']
+    const taskArg = args.filter(a => !a.startsWith('--') && !SUBCOMMANDS.includes(a.toLowerCase())).join(' ').trim()
 
     // Help
     if (flags.help) {
@@ -242,11 +244,22 @@ async function main() {
 ${c(CLR.cyan, '🧠 Molt-Hive CLI')}
 
 ${c(CLR.bold, 'Usage:')}
-  npx molt-hive                          Interactive chat
-  npx molt-hive "your task"              Single task (auto mode, 20 iterations)
-  npx molt-hive --forever "your task"    Continuous mode (runs until stopped)
-  npx molt-hive --setup                  Re-run setup
-  npx molt-hive --reset                  Reset all data
+  molt-hive                              Interactive chat (REPL)
+  molt-hive "your task"                  Single task (auto mode, 20 iterations)
+  molt-hive --forever "your task"        Continuous mode (runs until stopped)
+  molt-hive --setup                      Re-run setup wizard
+  molt-hive --reset                      Reset all data
+
+${c(CLR.bold, 'Subcommands:')}
+  molt-hive new                          Create a new hive (fresh setup)
+  molt-hive spawn <name> [role]          Spawn a new agent into the hive
+  molt-hive status                       Show hive status (agent, config, memory)
+
+${c(CLR.bold, 'REPL Commands:')}
+  /forever <task>                        Start forever mode on a task
+  /spawn <name> [role]                   Spawn a new agent
+  /status                                Show hive status
+  /quit                                  Exit
 
 ${c(CLR.bold, 'Environment:')}
   Reads .env for API keys. Stores data in ~/.molthive/
@@ -262,6 +275,80 @@ ${c(CLR.bold, 'Environment:')}
         console.log(c(CLR.green, '✓ Hive reset. All data cleared.'))
         process.exit(0)
     }
+
+    // ─── Subcommand: new ───
+    if (subcommand === 'new') {
+        const { rmSync } = await import('fs')
+        try { rmSync(DATA_DIR, { recursive: true, force: true }) } catch { }
+        mkdirSync(DATA_DIR, { recursive: true })
+        console.log(c(CLR.green, '✓ Hive cleared. Starting fresh setup...\n'))
+        // Fall through to setup below by clearing config
+    }
+
+    // ─── Subcommand: status ───
+    if (subcommand === 'status') {
+        const config = fileGet('config')
+        const agent = fileGet('agent')
+        const history = fileGet('history', [])
+
+        console.log(`\n${c(CLR.cyan, '🧠 Molt-Hive Status')}\n`)
+
+        if (!config) {
+            console.log(c(CLR.yellow, '  Not configured. Run: molt-hive --setup'))
+            process.exit(0)
+        }
+
+        console.log(`  ${c(CLR.bold, 'Hive:')}`)
+        console.log(`    Provider:   ${config.provider}`)
+        console.log(`    Model:      ${config.model}`)
+        console.log(`    API Key:    ${config.apiKey ? '✓ set' : '✗ missing'}`)
+
+        console.log(`\n  ${c(CLR.bold, 'Agent:')}`)
+        console.log(`    Name:       ${agent?.name || 'not set'}`)
+        console.log(`    Role:       ${agent?.role || 'not set'}`)
+        console.log(`    Generation: ${agent?.generation || 1}`)
+        console.log(`    Runs:       ${agent?.runs || 0}`)
+
+        // Count extra agents
+        const agents = fileGet('agents', [])
+        if (agents.length > 0) {
+            console.log(`\n  ${c(CLR.bold, `Spawned Agents (${agents.length}):`)}`)
+            for (const a of agents) {
+                console.log(`    ${c(CLR.cyan, a.name)} (${a.role}) · Gen ${a.generation || 1} · ${a.runs || 0} runs`)
+            }
+        }
+
+        console.log(`\n  ${c(CLR.bold, 'Memory:')}`)
+        console.log(`    History:    ${history.length} messages`)
+        console.log(`    Data dir:   ${DATA_DIR}`)
+        console.log('')
+        process.exit(0)
+    }
+
+    // ─── Subcommand: spawn ───
+    if (subcommand === 'spawn') {
+        const spawnName = args[1]
+        const spawnRole = args[2] || 'Generalist'
+
+        if (!spawnName) {
+            console.log(c(CLR.red, 'Usage: molt-hive spawn <name> [role]'))
+            console.log(c(CLR.dim, 'Roles: Generalist, Research, Engineering, Strategy, Creative, Analysis'))
+            process.exit(1)
+        }
+
+        const agents = fileGet('agents', [])
+        const newAgent = {
+            name: spawnName, role: spawnRole,
+            generation: 1, runs: 0,
+            createdAt: new Date().toISOString(),
+        }
+        agents.push(newAgent)
+        fileSet('agents', agents)
+        console.log(c(CLR.green, `✓ Spawned agent "${spawnName}" (${spawnRole})`))
+        console.log(c(CLR.dim, `  Total agents: ${agents.length + 1} (including primary)`))
+        process.exit(0)
+    }
+
 
     console.log(`\n${c(CLR.cyan, '🧠 Molt-Hive CLI')} ${c(CLR.dim, 'v1.0.0')}\n`)
 
@@ -421,8 +508,34 @@ ${c(CLR.bold, 'Environment:')}
         const text = line.trim()
         if (!text) { rl.prompt(); return }
         if (text === '/quit' || text === '/exit') { rl.close(); process.exit(0) }
-        if (text === '/forever') { console.log(c(CLR.yellow, 'Type your task for forever mode:')); rl.prompt(); return }
+        if (text === '/forever') { console.log(c(CLR.yellow, 'Usage: /forever <task>')); rl.prompt(); return }
         if (text.startsWith('/forever ')) { await agentLoop(text.slice(9), Infinity); rl.prompt(); return }
+
+        // /status
+        if (text === '/status') {
+            console.log(`\n  ${c(CLR.bold, 'Agent:')} ${agent.name} (${agent.role}) · Gen ${agent.generation} · ${agent.runs} runs`)
+            const agents = fileGet('agents', [])
+            if (agents.length > 0) {
+                for (const a of agents) console.log(`  ${c(CLR.cyan, a.name)} (${a.role})`)
+            }
+            console.log(`  ${c(CLR.dim, `Provider: ${config.provider}/${config.model} · History: ${history.length} msgs`)}`)
+            console.log('')
+            rl.prompt(); return
+        }
+
+        // /spawn
+        if (text.startsWith('/spawn ')) {
+            const parts = text.slice(7).trim().split(/\s+/)
+            const spawnName = parts[0]
+            const spawnRole = parts.slice(1).join(' ') || 'Generalist'
+            if (!spawnName) { console.log(c(CLR.red, 'Usage: /spawn <name> [role]')); rl.prompt(); return }
+            const agents = fileGet('agents', [])
+            agents.push({ name: spawnName, role: spawnRole, generation: 1, runs: 0, createdAt: new Date().toISOString() })
+            fileSet('agents', agents)
+            console.log(c(CLR.green, `✓ Spawned "${spawnName}" (${spawnRole})`))
+            rl.prompt(); return
+        }
+
         await agentLoop(text, 20)
         rl.prompt()
     })
