@@ -36,6 +36,7 @@ import { parseSignals, broadcastSignals, getSignals } from './engine/signals.js'
 import { evolveAgent } from './engine/evolution.js'
 import { checkServerHealth } from './engine/toolRunner.js'
 import { runAgentLoop } from './engine/agentLoop.js'
+import { parseCreateSkill, createSkill } from './engine/skills.js'
 
 export default function App() {
     // ─── State ───
@@ -240,13 +241,27 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                         await appendRawHistory(activeAgent.id, agentMsg)
                         setChatMessages(prev => [...prev, agentMsg])
 
-                        // Handle CRYSTALLIZE/SIGNAL in message
+                        // Handle CRYSTALLIZE/SIGNAL/CREATE_SKILL in message
                         if (text) {
                             const crystals = await runCrystallization(text, '', llmCfg, activeAgent.id)
                             const parsedSignals = parseSignals(text, activeAgent.id, activeAgent.name)
                             if (parsedSignals.length > 0) {
                                 await broadcastSignals(parsedSignals)
                                 setSignals(await getSignals())
+                            }
+
+                            // Handle CREATE_SKILL / LEARN_SKILL directives
+                            const newSkill = parseCreateSkill(text)
+                            if (newSkill) {
+                                const created = await createSkill(newSkill.name, newSkill.description, newSkill.body)
+                                if (created) {
+                                    const skillMsg = {
+                                        role: 'system',
+                                        content: `🧠 Skill "${newSkill.name}" learned and saved to skills/${newSkill.name}/SKILL.md`,
+                                        ts: new Date().toISOString(),
+                                    }
+                                    setChatMessages(prev => [...prev, skillMsg])
+                                }
                             }
                         }
                     },
