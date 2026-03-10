@@ -1,6 +1,30 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Environment
 .env
 .env.local
+
+# Internal planning files (not for public repo)
+implementation.md
+implementation_plan.md
+tasks.md
+agents.md
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
 .DS_Store
+Thumbs.db
 *.log
+
+# CLI data
+.molthive/

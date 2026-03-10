@@ -1,177 +1,212 @@
 # 🧠 Molt Hive
 
-> **The self-evolving, LLM-agnostic multi-agent system with infinite compressed memory.**
-> Fork → configure → launch. Production-ready in under 10 minutes.
-
----
-
-## GitHub Repository Description
-
-```
-Multi-parent self-evolving agent system. Infinite compressed memory, LLM-agnostic (Anthropic · OpenAI · Groq · Mistral · Ollama), production frontend included. Fork and launch in 10 minutes.
-```
+> **Your autonomous AI agent with infinite memory, tool execution, self-learning skills, and hivemind capabilities.**
+> Fork → install → `npm start`. Running in under 5 minutes.
 
 ---
 
 ## What Is Molt Hive?
 
-Molt Hive is a new kind of agent system built around three ideas nobody else has shipped together:
+Molt Hive is a fully autonomous AI agent that can **research, code, deploy, call APIs, browse the web, and learn new skills** — all on its own. Give it a task, pick a mode, and let it work.
 
-**1. Memory that never fills.** Most agent systems either lose context or hit token limits. Molt uses a three-tier memory architecture — HOT (live context), WARM (auto-compressed summaries), COLD (crystallized patterns) — so the context window stays fixed forever while knowledge accumulates without limit. What your agents learned in session 1 is still available in session 1000.
+- **💬 Chat Mode** — Talk to it like ChatGPT, but with persistent memory
+- **🤖 Auto Mode** — Give it a task; it uses tools in a loop until it's done
+- **♾️ Forever Mode** — Runs continuously on long research/building tasks until you stop it
 
-**2. Multiple parent agents sharing one brain.** Spawn as many specialized parent agents as you need — Research, Engineering, Strategy, Creative. Each has its own chat, its own task graph, its own evolution path. All of them read from and write to the same shared memory. When one agent crystallizes a pattern, every sibling knows it on their next message.
+Works with **5 LLM providers** (Anthropic, OpenAI, Groq, Mistral, Ollama) and includes both a **web UI** and a **CLI**.
 
-**3. Self-restructuring graphs.** Each agent runs on a directed workflow graph that rewrites itself based on runtime performance. Failing nodes get shed. Strong paths get promoted. Shadow branches evaluate in parallel before any change goes live. This is structural self-improvement — not fine-tuning, not prompting — the architecture evolves.
+### How is this different from other agents?
 
-The intelligence lives in the graph. The LLM underneath is swappable. Use Anthropic, OpenAI, Groq, Mistral, or run fully offline with Ollama — the memory, patterns, and agent evolution carry over unchanged.
-
----
-
-## Feature Overview
-
-| System | What It Does |
-|--------|-------------|
-| 🔁 **Three-Tier Memory** | HOT/WARM/COLD — context fixed, knowledge infinite |
-| 🌐 **Hive Network** | Multiple parents, one shared brain |
-| 🧬 **Self-Restructuring Graphs** | Agents rewrite their own workflow topology |
-| 🔌 **LLM Agnostic** | Anthropic, OpenAI, Groq, Mistral, Ollama (local/offline) |
-| 👤 **Human-in-the-Loop** | Trust dial 0–100, per-action autonomy thresholds |
-| 🔬 **Eval Agent** | Structurally isolated blind testing — prevents metric gaming |
-| ⎇ **Rollback & Branching** | Shadow branches, instant rollback to any prior generation |
-| 🎯 **Goal Drift Detection** | Measures + corrects divergence from original objective |
-| ⊕ **Task Decomposition** | Auto-splits tasks across best-fit sub-agents |
-| ↗ **Signal Bus** | Lateral agent-to-agent communication without master mediation |
-| 📚 **Pattern Library** | Persistent scar tissue — error patterns survive all sessions |
-| 🧬 **Agent Genome** | Export/import full agent DNA as portable `.json` |
-| 🔮 **Predictive Molt** | Forecasts graph stress before it builds |
-| ⊛ **Federated Memory** | Learn from other Hive instances anonymously |
-| ⊘ **Counterfactual Sim** | Every restructure is a proven hypothesis before it runs |
+| | **Other Agents** | **Molt Hive** |
+|--|---|---|
+| **Memory** | Context window only | 3-tier infinite (HOT/WARM/COLD) |
+| **Skills** | User-defined only | Self-learning + user-defined |
+| **Setup** | 30-60 min | < 5 min |
+| **Forever mode** | ❌ | ✅ Runs indefinitely |
+| **Multi-agent** | Complex routing | Shared brain, lateral signals |
+| **Self-evolution** | ❌ | Generations, molts, shadow branches |
 
 ---
 
-## Quick Start — Production in 10 Minutes
+## Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
-- npm or yarn
-- One of: an API key (Anthropic/OpenAI/Groq/Mistral) **or** [Ollama](https://ollama.ai) installed locally for fully offline use
+- [Node.js 18+](https://nodejs.org)
+- An API key (Anthropic/OpenAI/Groq/Mistral) **or** [Ollama](https://ollama.ai) for fully offline use
 
-### 1. Fork & Clone
+### 1. Clone & Install
 
 ```bash
-# Fork the repo on GitHub, then:
 git clone https://github.com/YOUR_USERNAME/molt-hive.git
 cd molt-hive
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
 ```
 
-### 3. Configure Environment
+### 2. Configure
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and add your API key for whichever provider you want to use. You only need one.
+Open `.env` and add **one** API key:
 
 ```env
-# Choose ONE provider — leave the rest blank
-
-# Anthropic (recommended for best reasoning)
-VITE_ANTHROPIC_API_KEY=sk-ant-...
-
-# OpenAI
-VITE_OPENAI_API_KEY=sk-...
-
-# Groq (fastest inference, free tier available)
-VITE_GROQ_API_KEY=gsk_...
-
-# Mistral
-VITE_MISTRAL_API_KEY=...
-
-# Ollama — no key needed, just make sure Ollama is running
-# See: https://ollama.ai/download
-VITE_OLLAMA_URL=http://localhost:11434
+# Pick ONE provider:
+VITE_GROQ_API_KEY=gsk_...        # Free tier at console.groq.com
+VITE_ANTHROPIC_API_KEY=sk-ant-...  # Best reasoning
+VITE_OPENAI_API_KEY=sk-...         # GPT-4o
+VITE_MISTRAL_API_KEY=...           # Mistral Large
+# Ollama: no key needed, just run `ollama serve`
 ```
 
-> **Running fully offline?** Install [Ollama](https://ollama.ai), run `ollama pull llama3.2`, leave `.env` as-is. Molt Hive will connect automatically.
+### 3. Launch
 
-### 4. Launch
-
+#### Web UI (recommended)
 ```bash
-npm run dev
+npm start
+```
+Opens at `http://localhost:5173`. Runs both the frontend and the tool server.
+
+#### CLI (no UI needed)
+```bash
+node cli.js                              # Interactive chat
+node cli.js "create a REST API"          # Single task (auto mode)
+node cli.js --forever "research AI"      # Runs until stopped
+node cli.js --setup                      # Re-run setup wizard
+node cli.js --reset                      # Clear all data
+node cli.js --help                       # Show all options
 ```
 
-Open `http://localhost:5173` — you'll see the Molt Hive launch screen.
+The CLI stores data in `~/.molthive/` and executes tools directly — no server needed.
 
-### 5. Launch Your Hive (in the UI — 3 steps, ~60 seconds)
+### 4. Setup Wizard (Web UI — 3 clicks)
 
-**Step 1 — Name your Hive**
-Give your hive a name: Synapse, Atlas, Nexus, Forge — anything. This is the top-level name for your agent network.
+1. **Name your hive** — Synapse, Atlas, Nexus, anything
+2. **Connect LLM** — Provider, model, API key, Test Connection
+3. **Create first agent** — Name, role, Launch
 
-**Step 2 — Connect your LLM**
-Select your provider, choose a model, paste your API key, hit "Test Connection." Green = ready. For Ollama, no key needed — just select it.
-
-**Step 3 — Name your first parent agent**
-Give it a name and pick a specialization (Generalist, Research, Engineering, Strategy, Creative, Analysis). Hit "Launch."
-
-**You're running.** Chat with your first agent. Spawn siblings. Watch the memory build.
+**You're running.** Give your agent a task.
 
 ---
 
-## Production Deployment
+## Tools (9 built-in)
 
-### Option A: Vercel (Recommended — 2 minutes)
+The agent can use these tools autonomously. In auto/forever mode, it chains them together to complete complex tasks.
 
-```bash
-npm install -g vercel
-vercel
+| Tool | What It Does |
+|------|-------------|
+| `shell_execute` | Run any terminal command |
+| `file_read` | Read a file |
+| `file_write` | Write/create files and directories |
+| `file_list` | List directory contents |
+| `web_search` | Search DuckDuckGo (free, no key) |
+| `web_fetch` | Fetch any URL content |
+| `code_execute` | Run JavaScript or Python code |
+| `npm_install` | Install npm packages on the fly |
+| `http_request` | Call any API (GET, POST, PUT, DELETE) |
+
+**Example tasks the agent can handle:**
+- "Create an Express API with 3 endpoints"
+- "Research the latest Bitcoin price and build a tracker"
+- "Set up a Solana wallet and check the balance"
+- "Scrape headlines from Hacker News and save to a file"
+
+---
+
+## Skills System
+
+Skills teach the agent **how** to do things. Each skill is a folder with a `SKILL.md` file:
+
+```
+skills/
+├── web-research/SKILL.md       ← How to search and read web pages
+├── code-project/SKILL.md       ← How to scaffold and build projects
+├── git-workflow/SKILL.md       ← How to use git
+├── api-integration/SKILL.md    ← How to call APIs
+├── data-analysis/SKILL.md      ← How to process data with code
+├── deployment/SKILL.md         ← How to build and deploy
+└── _template/SKILL.md          ← Copy this to create your own
 ```
 
-When prompted, add your environment variables via the Vercel dashboard or CLI:
+### Adding Your Own Skills
 
-```bash
-vercel env add VITE_ANTHROPIC_API_KEY
+1. Copy the template:
+   ```bash
+   cp -r skills/_template skills/my-skill
+   ```
+2. Edit `skills/my-skill/SKILL.md`:
+   ```markdown
+   ---
+   name: my-skill
+   description: When to use this skill
+   ---
+   # My Skill
+   ## Steps
+   1. Do this with `web_search`
+   2. Then do that with `file_write`
+   ## Actions
+   ### Example Action
+   TOOL_CALL: tool_name {"param": "value"}
+   ```
+3. Restart the server — the agent will see it on the next session
+
+### Agent Self-Learning
+
+The agent can **create its own skills** during autonomous work. When it writes:
+```
+CREATE_SKILL: crypto-wallet
+description: How to create and manage crypto wallets
+---
+# Crypto Wallet
+## Steps
+...
+---
 ```
 
-Done. Your Hive is live at `https://your-project.vercel.app`.
+A new `skills/crypto-wallet/SKILL.md` is automatically created. The agent remembers the skill across sessions.
 
-### Option B: Netlify
+---
 
-```bash
-npm run build
-# Drag the `dist/` folder to netlify.com/drop
-# Add env vars in Site Settings → Environment Variables
-```
+## Memory System
 
-### Option C: Docker
+| Tier | What | When |
+|------|------|------|
+| **HOT** | Last 8 messages verbatim | Always in context |
+| **WARM** | Auto-compressed summaries (~120 tokens) | When HOT fills |
+| **COLD** | Crystallized patterns (permanent) | When agent writes `CRYSTALLIZE:` |
 
-```bash
-docker build -t molt-hive .
-docker run -p 3000:3000 \
-  -e VITE_ANTHROPIC_API_KEY=your-key \
-  molt-hive
-```
+Context stays **fixed forever**. Knowledge grows **infinitely**. What your agent learned in session 1 is still available in session 1000.
 
-### Option D: Static Build (any host)
+---
 
-```bash
-npm run build
-# Upload contents of dist/ to any static host (S3, GitHub Pages, Cloudflare Pages, etc.)
-```
+## Agent Modes
 
-### Option E: Self-Hosted with HTTPS (VPS)
+Click the mode toggle in the chat to cycle:
 
-```bash
-npm run build
-npm install -g serve
-serve -s dist -l 3000
-# Point your reverse proxy (nginx/caddy) at port 3000
-```
+| Mode | Button | Behavior |
+|------|--------|----------|
+| 💬 CHAT | Click toggle | Single response, no tools |
+| 🤖 AUTO | Click toggle | Loops up to 20 iterations with tools |
+| ♾️ FOREVER | Click toggle | Runs indefinitely until you hit STOP |
+
+**Forever mode features:**
+- Checkpoints every 10 iterations
+- Auto-prunes context to prevent overflow
+- 1s cooldown between iterations
+- Stops after 3 consecutive errors
+- Hit STOP at any time
+
+---
+
+## Multi-Agent Hive
+
+Click **+ Spawn Agent** in the sidebar. Each new agent gets:
+- Its own name, role, and personality
+- Shared access to all WARM and COLD memory
+- Independent HOT context
+- Ability to signal other agents: `SIGNAL [AgentName]: [message]`
+
+All agents share one brain. When one crystallizes a pattern, all siblings see it.
 
 ---
 
@@ -179,313 +214,70 @@ serve -s dist -l 3000
 
 ```
 molt-hive/
+├── server.js                   ← Tool server (Express, port 3001)
+├── cli.js                      ← CLI (REPL + task + forever mode)
+├── skills/                     ← Skill definitions (SKILL.md files)
 ├── src/
-│   ├── App.jsx              ← Main Molt Hive UI (full single-file component)
-│   ├── index.jsx            ← React entry point
-│   ├── storage.js           ← Storage adapter (browser ↔ server)
-│   └── llm.js               ← LLM bridge (all providers)
-├── public/
-│   └── index.html
-├── MASTER_PROMPT.md         ← Full agent system prompt — use to initialize any session
-├── agents.md                ← Live agent registry (auto-updated by agents)
-├── implementation.md        ← Architecture & change log (auto-updated)
-├── tasks.md                 ← Live task board (auto-updated)
-├── WALKTHROUGH.md           ← This file — complete setup & usage guide
-├── .env.example             ← Environment variable template
-├── package.json
-├── vite.config.js
+│   ├── App.jsx                 ← Root shell + agentic loop wiring
+│   ├── llm.js                  ← 5 LLM providers
+│   ├── storage.js              ← Persistent storage adapter
+│   └── engine/
+│       ├── agentLoop.js        ← Autonomous loop (chat/auto/forever)
+│       ├── tools.js            ← 9 tool definitions
+│       ├── toolRunner.js       ← TOOL_CALL parser + server bridge
+│       ├── skills.js           ← Skills loader (reads from skills/)
+│       ├── memory.js           ← HOT/WARM/COLD memory engine
+│       ├── signals.js          ← Inter-agent signal bus
+│       ├── evolution.js        ← Generations, molts, drift, trust
+│       ├── systemPrompt.js     ← Dynamic prompt builder
+│       └── agentManager.js     ← Agent lifecycle management
+├── .env.example
 ├── Dockerfile
-└── README.md
+└── package.json
 ```
 
 ---
 
-## Memory Architecture (How It Works)
+## Documentation
 
-This is the core technical innovation. Understanding it takes 2 minutes and changes how you think about agent context.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    CONTEXT WINDOW                        │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  WARM MEMORY (injected into system prompt)      │    │
-│  │  Auto-compressed summaries · ~120 tokens each   │    │
-│  │  Last 5 summaries always included               │    │
-│  └─────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  COLD MEMORY (keyword-retrieved patterns)       │    │
-│  │  Crystallized pure insights · never raw         │    │
-│  │  Last 6 patterns relevant to current topic      │    │
-│  └─────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  HOT MEMORY (last 8 messages verbatim)          │    │
-│  │  Always in context · never compressed           │    │
-│  │  Rolls: oldest → compressed to WARM             │    │
-│  └─────────────────────────────────────────────────┘    │
-│                  [FIXED SIZE FOREVER]                    │
-└─────────────────────────────────────────────────────────┘
-
-Knowledge accumulated: ∞ (grows without limit)
-Context cost:          FIXED (never grows)
-```
-
-**What happens as you chat:**
-1. Messages enter HOT tier (verbatim, last 8)
-2. When HOT fills, oldest 6 messages are compressed to ~120-token summary → WARM
-3. When agents write `CRYSTALLIZE: [topic]`, a pure pattern is extracted → COLD
-4. Context window stays the same size. Forever. The knowledge doesn't.
+| File | What It Covers |
+|------|---------------|
+| [**WALKTHROUGH.md**](WALKTHROUGH.md) | Complete setup guide, CLI usage, skills system, deployment |
+| [**MASTER_PROMPT.md**](MASTER_PROMPT.md) | Agent system prompt — all 11 systems, behavioral directives, operating principles |
+| [**CURSOR_PROMPT.md**](CURSOR_PROMPT.md) | Memory architecture deep dive, error scanning loop |
+| [**skills/_template/SKILL.md**](skills/_template/SKILL.md) | Template for creating new skills |
 
 ---
 
-## Spawning Multiple Parent Agents
+## LLM Providers
 
-Each parent agent is a specialized master. They share memory but operate independently.
-
-**In the UI:**
-1. Click `+ Spawn Agent` in the sidebar
-2. Name the agent
-3. Pick a specialization
-4. Done — it immediately has access to all WARM + COLD memory the hive has built
-
-**Recommended hive configurations:**
-
-*Small hive (2 agents)*
-```
-Atlas   — Generalist (primary chat / orchestration)
-Iris    — Research (deep research tasks)
-```
-
-*Engineering hive (3 agents)*
-```
-Forge   — Engineering (primary coder)
-Scout   — Research (context / documentation)
-Lens    — Analysis (review / audit)
-```
-
-*Full hive (4+ agents)*
-```
-Nexus   — Strategy (high-level planning)
-Forge   — Engineering (implementation)
-Scout   — Research (information)
-Echo    — Creative (content / communications)
-```
-
-**Cross-agent communication:** When any agent writes `SIGNAL [AgentName]: [message]` in a reply, that message appears instantly in the target agent's signal bus. No master mediation. No routing delay.
+| Provider | Key Env Var | Notes |
+|----------|-------------|-------|
+| **Anthropic** | `VITE_ANTHROPIC_API_KEY` | Best reasoning (Claude 3.5) |
+| **OpenAI** | `VITE_OPENAI_API_KEY` | GPT-4o |
+| **Groq** | `VITE_GROQ_API_KEY` | Fastest inference, [free tier](https://console.groq.com) |
+| **Mistral** | `VITE_MISTRAL_API_KEY` | Mistral Large |
+| **Ollama** | No key needed | Fully offline, run `ollama serve` |
 
 ---
 
-## The MASTER_PROMPT.md File
+## Deployment
 
-`MASTER_PROMPT.md` is the full system prompt for every agent in the Hive. It contains:
-
-- Complete description of what's being built
-- All 11 system descriptions
-- Agent behavioral directives
-- The error/bug/vulnerability scanning loop
-- Living documentation update protocols (agents.md, implementation.md, tasks.md)
-- Production deployment checklist
-- Core operating principles
-
-**How to use it:**
-- It is automatically injected into every agent's system prompt via `src/llm.js`
-- You can edit it to customize your Hive's behavior, goals, and constraints
-- Add project-specific context at the bottom under `## PROJECT CONTEXT`
-- Agents read it every session — it is the Hive's constitution
-
-**Add your project context:**
-At the bottom of `MASTER_PROMPT.md`, add a section like:
-
-```markdown
-## PROJECT CONTEXT
-
-We are building: [your project description]
-Tech stack: [your stack]
-Current priority: [what to focus on]
-Constraints: [any constraints]
-```
-
-Every agent in your Hive will know this on every message.
-
----
-
-## Living Documentation Files
-
-These three files are maintained by the agents themselves. You can read them anytime to see the current state of your system.
-
-### `agents.md` — Agent Registry
-Who is running, what generation, what success rate, when they last evolved, what they've scanned.
-
-### `implementation.md` — Architecture & Change Log  
-Every significant change logged: what changed, why, which agent made it, what the scan found, what patterns were crystallized.
-
-### `tasks.md` — Live Task Board
-Critical → High → Medium → Low → Backlog. Automatically updated when tasks are completed or when the error scan loop discovers new issues.
-
-**You can edit these files directly.** Agents will read the current state and respond accordingly. Add a task to `tasks.md` by hand — the agents will pick it up.
-
----
-
-## Error Handling & Scan Loop
-
-Every time an agent performs a code-related task, the scanning loop runs automatically:
-
-1. **Syntax check** — parse errors, malformed structures, broken references
-2. **Logic scan** — infinite loops, unhandled promises, race conditions  
-3. **Security scan** — hardcoded secrets, XSS vectors, exposed endpoints, dependency CVEs
-4. **Performance scan** — N+1 patterns, memory leaks, blocking async operations
-5. **Type safety** — null access, type coercions, undefined references
-6. **Dependency check** — unresolved imports, circular deps, deprecated APIs
-
-**Severity levels:**
-- `CRITICAL` → blocks commit, immediate human escalation
-- `HIGH` → added to tasks.md, continues with flag
-- `MEDIUM` → logged to implementation.md
-- `LOW` → accumulated in scar tissue for pattern analysis
-
-Results are automatically logged to all three living documentation files.
-
----
-
-## LLM Provider Guide
-
-### Anthropic (Best Reasoning)
-```env
-VITE_ANTHROPIC_API_KEY=sk-ant-api03-...
-```
-Recommended models:
-- `claude-opus-4-5` — highest capability, best for complex multi-step reasoning
-- `claude-sonnet-4-5` — best balance of speed and capability (default)
-- `claude-haiku-4-5` — fastest, lowest cost, good for high-frequency tasks
-
-### OpenAI
-```env
-VITE_OPENAI_API_KEY=sk-...
-```
-Recommended models: `gpt-4o` (best), `gpt-4o-mini` (fast/cheap)
-
-### Groq (Fastest Inference)
-```env
-VITE_GROQ_API_KEY=gsk_...
-```
-Free tier available at [console.groq.com](https://console.groq.com).
-Recommended: `llama-3.1-70b-versatile`
-
-### Mistral
-```env
-VITE_MISTRAL_API_KEY=...
-```
-Recommended: `mistral-large-latest`
-
-### Ollama (Fully Offline / Local)
-No API key needed. Install Ollama, pull a model, run.
-
+### Self-hosted (recommended)
 ```bash
-# Install Ollama
-curl https://ollama.ai/install.sh | sh
-
-# Pull models (pick one or more)
-ollama pull llama3.2        # General purpose, fast
-ollama pull mistral         # Strong reasoning
-ollama pull codellama       # Best for coding tasks
-ollama pull deepseek-r1     # Strong at analysis
-ollama pull phi3            # Lightweight, very fast
-
-# Run Ollama
-ollama serve
+npm install && npm start
 ```
 
-Then in Molt Hive UI: select Ollama as provider, pick your model, leave API key blank.
-
-**You can mix providers per agent.** Run Anthropic for your Strategy agent and Ollama locally for your Research agent — each agent's LLM config is stored independently.
-
----
-
-## Customization Guide
-
-### Change the default sub-agents
-In `src/App.jsx`, find the `firstAgent` initialization and edit the `subAgents` array:
-```javascript
-subAgents: ["Research", "Coder", "Writer", "Eval"]
-// Change to whatever fits your use case:
-subAgents: ["Data", "Analyst", "Reporter", "Reviewer"]
+### Docker
+```bash
+docker build -t molt-hive .
+docker run -p 3001:3001 -e VITE_GROQ_API_KEY=your-key molt-hive
 ```
 
-### Adjust memory compression thresholds
-In `src/App.jsx`:
-```javascript
-const HOT_LIMIT   = 8;  // Messages kept verbatim in context
-const COMPRESS_AT = 6;  // Compress oldest N when HOT fills
-```
-Increase `HOT_LIMIT` for more verbatim context (higher token cost).
-Decrease for tighter context management.
-
-### Modify the trust dial defaults
-In `src/App.jsx`, find `TRUST_ACTIONS` and edit the `min` values for each action to match your autonomy preferences.
-
-### Add custom agent roles
-Edit the role options in the `LaunchScreen` and `SpawnModal` components:
-```javascript
-// Find this array and add your roles:
-["Generalist","Research","Engineering","Strategy","Creative","Analysis","YOUR_ROLE"]
-```
-
-### Customize the system prompt per deployment
-Add a `## PROJECT CONTEXT` section at the bottom of `MASTER_PROMPT.md`. This is injected into every agent system prompt automatically.
-
----
-
-## Environment Variables Reference
-
-```env
-# ── LLM PROVIDERS (add key for any provider you want to use) ──
-VITE_ANTHROPIC_API_KEY=          # sk-ant-...
-VITE_OPENAI_API_KEY=             # sk-...
-VITE_GROQ_API_KEY=               # gsk_...
-VITE_MISTRAL_API_KEY=            # your mistral key
-VITE_OLLAMA_URL=http://localhost:11434  # Ollama server URL
-
-# ── STORAGE (optional — defaults to localStorage) ──
-VITE_STORAGE_TYPE=local          # local | server | redis
-VITE_STORAGE_URL=                # Server storage URL if using server mode
-
-# ── FEDERATION (optional — defaults to off) ──
-VITE_FEDERATION_ENABLED=false    # Enable shared scar pattern network
-VITE_FEDERATION_URL=             # Your federation endpoint
-
-# ── APP CONFIG ──
-VITE_APP_NAME=Molt Hive          # Customize the app name
-VITE_DEFAULT_PROVIDER=anthropic  # Default provider on fresh install
-```
-
----
-
-## API Reference (for server-side integration)
-
-If you want to connect Molt Hive to a backend or use it programmatically:
-
-### LLM Bridge (`src/llm.js`)
-```javascript
-import { llmCall } from './llm.js'
-
-const response = await llmCall({
-  provider: 'anthropic',       // anthropic | openai | groq | mistral | ollama
-  apiKey: 'sk-ant-...',
-  model: 'claude-sonnet-4-5',
-  system: 'You are...',
-  messages: [
-    { role: 'user', content: 'Hello' }
-  ]
-})
-// response → string
-```
-
-### Storage Adapter (`src/storage.js`)
-```javascript
-import { db } from './storage.js'
-
-await db.set('my-key', { any: 'data' })
-const data = await db.get('my-key', defaultValue)
-await db.del('my-key')
+### Static (Vercel/Netlify — no tools)
+```bash
+npm run build
+# Deploy dist/ folder
 ```
 
 ---
@@ -493,60 +285,25 @@ await db.del('my-key')
 ## Troubleshooting
 
 **"Connection failed" on LLM test**
-- Anthropic/OpenAI/Groq/Mistral: double-check your API key, ensure it has credits
-- Ollama: make sure `ollama serve` is running in a separate terminal
-- CORS error on Ollama: add `OLLAMA_ORIGINS=*` to your Ollama environment
+- Check your API key in `.env` and ensure it has credits
+- For Ollama: `ollama serve` must be running. Add `OLLAMA_ORIGINS=*` if CORS errors
 
-**Messages not persisting after refresh**
-- Check that your browser allows localStorage (not in private/incognito mode)
-- If deploying to a host that restricts storage, configure `VITE_STORAGE_TYPE=server`
+**Tools not working**
+- Make sure the tool server is running (it starts automatically with `npm start`)
+- Check port 3001 is not in use: `netstat -ano | findstr :3001`
 
-**Context feels like it's losing memory**
-- This is expected behavior — messages older than the HOT limit are compressed, not lost
-- Open the Memory panel (◈ Memory tab) to see your warm summaries and cold patterns
-- The agent has access to all of it via the system prompt — it just looks different
-
-**Agent not crystallizing patterns**
-- Agents crystallize when they write `CRYSTALLIZE:` in a response
-- Prompt them explicitly: "Crystallize any key patterns from this session"
-- Or ask directly: "What patterns should we preserve from what we just built?"
-
-**"SIGNAL" not reaching sibling agents**
-- You must have 2+ agents spawned
-- Switch to the target agent's chat tab to see the signal in their context
-- Signals appear in the Hive Network panel's signal feed for all agents
-
----
-
-## Roadmap
-
-- [ ] Server-side memory persistence (PostgreSQL / Redis adapter)
-- [ ] Shared federation network (opt-in pattern sharing between Hive deployments)
-- [ ] Agent Genome marketplace (share + import battle-tested agent configurations)
-- [ ] Webhook support (trigger agents from external events)
-- [ ] Mobile-optimized UI
-- [ ] CLI launcher (`molt new`, `molt spawn`, `molt status`)
-- [ ] Multi-user Hive (team-shared agents with role-based access)
-- [ ] Voice input integration
-- [ ] Native desktop app (Tauri wrapper)
+**CLI not finding API key**
+- The CLI reads `.env` from the current directory. Run from the project root
+- Or run `node cli.js --setup` to configure directly
 
 ---
 
 ## Contributing
 
 1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes
-4. Run the scan loop: agents will automatically check for issues when you describe your changes
-5. Update `tasks.md` and `implementation.md` with what you changed
-6. Open a PR with a clear description
-
-**Before submitting a PR:**
-- [ ] No hardcoded API keys anywhere
-- [ ] `tasks.md` updated
-- [ ] `implementation.md` change log entry added
-- [ ] Tested with at least one provider (Ollama works offline, no key needed)
-- [ ] No breaking changes to the `MASTER_PROMPT.md` format
+2. `git checkout -b feature/your-feature`
+3. Make changes, test with `npm run build`
+4. Open a PR
 
 ---
 
@@ -556,21 +313,4 @@ MIT — fork it, ship it, build on it.
 
 ---
 
-## Credits
-
-Molt Hive was designed around the insight that agent intelligence should live in structure, not in any single model. The three-tier memory architecture, hive network, and self-restructuring graphs are original designs built to solve real limitations in existing agent frameworks.
-
----
-
-## One More Thing
-
-The best way to understand Molt Hive is to run it. Fork it, launch it in 10 minutes, and ask your first agent to explain its own architecture. It will.
-
-```
-git clone https://github.com/YOUR_USERNAME/molt-hive.git
-cd molt-hive && npm install && npm run dev
-```
-
----
-
-*Star ⭐ the repo if Molt Hive is useful to you. Issues and PRs welcome.*
+*Star ⭐ if Molt Hive is useful to you.*
