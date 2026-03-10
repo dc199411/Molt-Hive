@@ -67,17 +67,16 @@ npm start
 ```
 Opens at `http://localhost:5173`. Runs both the frontend and the tool server.
 
-#### CLI (no UI needed)
+#### CLI
 ```bash
-node cli.js                              # Interactive chat
-node cli.js "create a REST API"          # Single task (auto mode)
-node cli.js --forever "research AI"      # Runs until stopped
-node cli.js --setup                      # Re-run setup wizard
-node cli.js --reset                      # Clear all data
-node cli.js --help                       # Show all options
+molt start    # Setup wizard → interactive chat
 ```
 
-The CLI stores data in `~/.molthive/` and executes tools directly — no server needed.
+Or without global install:
+```bash
+node cli.js start
+npm run cli -- start
+```
 
 ### 4. Setup Wizard (Web UI — 3 clicks)
 
@@ -86,6 +85,71 @@ The CLI stores data in `~/.molthive/` and executes tools directly — no server 
 3. **Create first agent** — Name, role, Launch
 
 **You're running.** Give your agent a task.
+
+---
+
+## CLI Reference
+
+The `molt` command is the full CLI for Molt Hive. Install globally with `npm link`, or use `node cli.js` directly.
+
+### Setup & Launch
+
+```bash
+molt start                          # Setup wizard → interactive REPL
+molt chat                           # Jump straight to interactive chat
+```
+
+### Task Execution
+
+```bash
+molt run "create a REST API"        # Auto mode — runs up to 20 iterations
+molt run --forever "research AI"    # Forever mode — runs until done or stopped
+```
+
+### Agent Management
+
+```bash
+molt spawn Scout Research           # Spawn a new agent with name and role
+molt spawn Echo Creative            # Roles: Generalist, Research, Engineering,
+                                    #        Strategy, Creative, Analysis
+molt agents                         # List all agents with stats
+molt status                         # Full hive status (config, agents, memory)
+```
+
+### Configuration
+
+```bash
+molt config                         # Show current config
+molt config set provider groq       # Switch LLM provider
+molt config set model gpt-4o        # Switch model
+molt config set apiKey sk-...       # Update API key
+```
+
+### Other
+
+```bash
+molt skills                         # List loaded skills with descriptions
+molt reset                          # Reset all data (clean slate)
+molt version                        # Show version
+molt help                           # Show all commands
+```
+
+### Interactive REPL Commands
+
+Inside `molt chat` or `molt start`:
+
+```
+/run <task>         Run a task in auto mode
+/forever <task>     Run a task in forever mode
+/spawn <name> [r]   Spawn a new agent
+/agents             List all agents
+/status             Show hive status
+/skills             List skills
+/config             Show config
+/quit               Exit
+```
+
+Data is stored in `~/.molthive/` and persists across sessions.
 
 ---
 

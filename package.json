@@ -5,14 +5,15 @@
   "private": true,
   "type": "module",
   "bin": {
-    "molt-hive": "./cli.js"
+    "molt": "./cli.js"
   },
   "scripts": {
     "dev": "vite",
     "server": "node server.js",
     "start": "concurrently \"npm run dev\" \"npm run server\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cli": "node cli.js"
   },
   "dependencies": {
     "concurrently": "^9.2.1",
