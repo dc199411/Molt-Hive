@@ -96,9 +96,23 @@ ${toolBlock}`)
         // ─── Skills ───
         if (skillsBlock) {
             sections.push(`# AVAILABLE SKILLS
-These are pre-learned workflows you can draw from:
+Skills are pre-learned workflows stored in the skills/ folder. Each skill is a SKILL.md file with instructions.
 ${skillsBlock}
-You can learn new skills by writing: LEARN_SKILL: name | description | triggers: word1, word2`)
+
+## Creating New Skills
+You can create new skills to save workflows you've learned:
+
+CREATE_SKILL: skill-name
+description: When to use this skill
+---
+# Skill Title
+## Steps / Actions / Notes
+(markdown content with TOOL_CALL examples)
+---
+
+Or use the shorthand: LEARN_SKILL: name | description
+
+Both methods write a SKILL.md file to skills/<name>/SKILL.md so it persists.`)
         }
     }
 
