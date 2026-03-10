@@ -10,7 +10,7 @@ export default function TopBar({
     hiveName, agent, agents, warmCount, coldCount,
     hotCount, hotLimit, provider, model,
     sidebarOpen, onToggleSidebar, onReset,
-    serverOnline, autonomousMode, loopStatus,
+    serverOnline, agentMode, loopStatus,
 }) {
     return (
         <div style={{

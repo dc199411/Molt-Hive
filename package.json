@@ -4,6 +4,9 @@
   "description": "Multi-parent self-evolving agent system with infinite compressed memory",
   "private": true,
   "type": "module",
+  "bin": {
+    "molt-hive": "./cli.js"
+  },
   "scripts": {
     "dev": "vite",
     "server": "node server.js",

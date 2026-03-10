@@ -54,7 +54,7 @@ export default function App() {
     const [signals, setSignals] = useState([])
     const [hotCount, setHotCount] = useState(0)
     const [serverOnline, setServerOnline] = useState(false)
-    const [autonomousMode, setAutonomousMode] = useState(true)
+    const [agentMode, setAgentMode] = useState('auto') // 'chat' | 'auto' | 'forever'
     const [loopStatus, setLoopStatus] = useState(null) // {iteration, action}
     const cancelRef = useRef(false)
 
@@ -197,7 +197,7 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                 allAgents: agents,
                 llmCfg,
                 conversationHistory: hotMsgs,
-                maxIterations: autonomousMode ? 20 : 1,
+                maxIterations: agentMode === 'forever' ? 'forever' : agentMode === 'auto' ? 20 : 1,
                 callbacks: {
                     onThinking: (iteration) => {
                         setLoopStatus({ iteration, action: 'thinking' })
@@ -253,7 +253,6 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
 
                     onComplete: async (summary) => {
                         setLoopStatus(null)
-                        // Background compression
                         runCompressionCycle(activeAgent.id, llmCfg)
                             .then(async (r) => {
                                 if (r.compressed) {
@@ -263,6 +262,15 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                                 }
                             })
                             .catch(e => console.warn('[MoltHive] Compression error:', e))
+                    },
+
+                    onCheckpoint: (checkpoint) => {
+                        const cpMsg = {
+                            role: 'system',
+                            content: `📍 Checkpoint — iteration ${checkpoint.iteration}, ${checkpoint.toolCalls} tool calls, running ${checkpoint.elapsed}`,
+                            ts: new Date().toISOString(),
+                        }
+                        setChatMessages(prev => [...prev, cpMsg])
                     },
 
                     onNeedsHuman: (question) => {
@@ -314,7 +322,7 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
         setHotCount(Math.min(updatedRaw.length, HOT_LIMIT))
         setLoopStatus(null)
         setIsBusy(false)
-    }, [activeAgent, agents, config, isBusy, autonomousMode])
+    }, [activeAgent, agents, config, isBusy, agentMode])
 
     // ─── Cancel loop ───
     const handleCancel = useCallback(() => {
@@ -367,7 +375,7 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                         onToggleSidebar={() => setSidebarOpen(p => !p)}
                         onReset={handleReset}
                         serverOnline={serverOnline}
-                        autonomousMode={autonomousMode}
+                        agentMode={agentMode}
                         loopStatus={loopStatus}
                     />
 
@@ -388,8 +396,8 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                             onCancel={handleCancel}
                             hotCount={hotCount}
                             hotLimit={HOT_LIMIT}
-                            autonomousMode={autonomousMode}
-                            onToggleAutonomous={() => setAutonomousMode(p => !p)}
+                            agentMode={agentMode}
+                            onCycleMode={() => setAgentMode(m => m === 'chat' ? 'auto' : m === 'auto' ? 'forever' : 'chat')}
                             loopStatus={loopStatus}
                             serverOnline={serverOnline}
                         />
