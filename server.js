@@ -471,10 +471,71 @@ const TOOLS = {
     },
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  SKILLS ENDPOINT — reads skills/ folder
+// ═══════════════════════════════════════════════════════════════
+
+const SKILLS_DIR = join(CONFIG.workingDir, 'skills')
+
+/**
+ * Parse YAML frontmatter from a SKILL.md file.
+ */
+function parseFrontmatter(content) {
+    const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+    if (!match) return { meta: {}, body: content }
+    const meta = {}
+    match[1].split('\n').forEach(line => {
+        const kv = line.match(/^(\w+):\s*(.+)$/)
+        if (kv) meta[kv[1]] = kv[2].trim()
+    })
+    return { meta, body: match[2].trim() }
+}
+
+app.get('/api/skills', (req, res) => {
+    try {
+        if (!existsSync(SKILLS_DIR)) {
+            return res.json({ skills: [], count: 0 })
+        }
+
+        const skills = []
+        const entries = readdirSync(SKILLS_DIR)
+
+        for (const entry of entries) {
+            const skillPath = join(SKILLS_DIR, entry, 'SKILL.md')
+            if (!existsSync(skillPath)) continue
+
+            try {
+                const content = readFileSync(skillPath, 'utf-8')
+                const { meta, body } = parseFrontmatter(content)
+                skills.push({
+                    name: meta.name || entry,
+                    description: meta.description || '',
+                    body,
+                    path: skillPath,
+                })
+            } catch { /* skip unreadable */ }
+        }
+
+        console.log(`[Skills] Loaded ${skills.length} skills from ${SKILLS_DIR}`)
+        res.json({ skills, count: skills.length })
+    } catch (error) {
+        res.json({ skills: [], count: 0, error: error.message })
+    }
+})
+
 // ─── Start Server ───
 app.listen(PORT, () => {
+    // Count skills
+    let skillCount = 0
+    try {
+        if (existsSync(SKILLS_DIR)) {
+            skillCount = readdirSync(SKILLS_DIR).filter(e => existsSync(join(SKILLS_DIR, e, 'SKILL.md'))).length
+        }
+    } catch { }
+
     console.log(`\n🧠 Molt-Hive Tool Server running on port ${PORT}`)
     console.log(`   Working directory: ${CONFIG.workingDir}`)
     console.log(`   Available tools: ${Object.keys(TOOLS).join(', ')}`)
+    console.log(`   Skills loaded: ${skillCount} (from skills/)`)
     console.log(`   Health: http://localhost:${PORT}/api/health\n`)
 })

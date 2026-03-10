@@ -1,179 +1,152 @@
 /**
- * Molt-Hive Skills System
- * Learnable, reusable capabilities that agents can acquire and execute.
+ * Molt-Hive Skills System (Folder-Based)
  * 
- * Skills are stored in COLD memory as executable patterns.
- * Agents learn new skills from successful tool chains.
+ * Skills live in the /skills directory, one folder per skill.
+ * Each skill folder contains a SKILL.md with YAML frontmatter (name, description)
+ * and markdown body (instructions, examples, actions).
+ * 
+ * How it works:
+ * - On the server: reads skills/ directory and parses SKILL.md files
+ * - In the browser: fetches skill data via /api/skills endpoint
+ * - Agent can CREATE new skills by writing SKILL.md files via file_write tool
+ * - Users can add skills by creating a new folder in skills/ with a SKILL.md
+ * 
+ * Format (same as OpenClaw):
+ * ---
+ * name: skill-name
+ * description: When to use this skill
+ * ---
+ * # Skill Title
+ * ## Overview / Steps / Actions / Notes
  */
 
-import { db } from '../storage.js'
-
-/**
- * Pre-built skills that ship with Molt-Hive.
- * Users can add custom skills via the LEARN_SKILL directive or by editing this array.
- */
-export const BUILT_IN_SKILLS = [
-    {
-        name: 'web_research',
-        description: 'Research a topic by searching the web and reading relevant pages.',
-        triggers: ['research', 'find out', 'look up', 'search for', 'learn about'],
-        steps: [
-            { tool: 'web_search', paramTemplate: { query: '{{topic}}' } },
-            { tool: 'web_fetch', paramTemplate: { url: '{{top_result_url}}' } },
-        ],
-        category: 'research',
-    },
-    {
-        name: 'create_project',
-        description: 'Create a new project directory with files.',
-        triggers: ['create project', 'new project', 'scaffold', 'initialize'],
-        steps: [
-            { tool: 'shell_execute', paramTemplate: { command: 'mkdir {{name}}' } },
-            { tool: 'file_write', paramTemplate: { path: '{{name}}/package.json', content: '{{package_json}}' } },
-            { tool: 'shell_execute', paramTemplate: { command: 'cd {{name}} && npm init -y' } },
-        ],
-        category: 'development',
-    },
-    {
-        name: 'code_review',
-        description: 'Read and analyze code files for issues, patterns, and improvements.',
-        triggers: ['review code', 'check code', 'analyze code', 'audit'],
-        steps: [
-            { tool: 'file_list', paramTemplate: { path: '{{directory}}', recursive: true } },
-            { tool: 'file_read', paramTemplate: { path: '{{target_file}}' } },
-        ],
-        category: 'development',
-    },
-    {
-        name: 'deploy_static',
-        description: 'Build and deploy a static site.',
-        triggers: ['deploy', 'ship', 'publish', 'build and deploy'],
-        steps: [
-            { tool: 'shell_execute', paramTemplate: { command: 'npm run build' } },
-            { tool: 'shell_execute', paramTemplate: { command: 'npx serve -s dist -l 3000' } },
-        ],
-        category: 'deployment',
-    },
-    {
-        name: 'git_workflow',
-        description: 'Standard git workflow: stage, commit, push.',
-        triggers: ['commit', 'push', 'save changes', 'git'],
-        steps: [
-            { tool: 'shell_execute', paramTemplate: { command: 'git add -A' } },
-            { tool: 'shell_execute', paramTemplate: { command: 'git commit -m "{{message}}"' } },
-            { tool: 'shell_execute', paramTemplate: { command: 'git push origin {{branch}}' } },
-        ],
-        category: 'development',
-    },
-    {
-        name: 'install_and_use_package',
-        description: 'Install an npm package and create a script that uses it.',
-        triggers: ['install package', 'add library', 'use npm package'],
-        steps: [
-            { tool: 'web_search', paramTemplate: { query: '{{package}} npm usage guide' } },
-            { tool: 'npm_install', paramTemplate: { packages: '{{package}}' } },
-            { tool: 'file_write', paramTemplate: { path: '{{script_path}}', content: '{{script_content}}' } },
-        ],
-        category: 'development',
-    },
-    {
-        name: 'api_integration',
-        description: 'Research an API, understand its endpoints, and make test requests.',
-        triggers: ['integrate api', 'connect to api', 'use api', 'api call'],
-        steps: [
-            { tool: 'web_search', paramTemplate: { query: '{{api_name}} API documentation' } },
-            { tool: 'web_fetch', paramTemplate: { url: '{{docs_url}}' } },
-            { tool: 'http_request', paramTemplate: { method: 'GET', url: '{{test_endpoint}}' } },
-        ],
-        category: 'integration',
-    },
-    {
-        name: 'data_analysis',
-        description: 'Read data, process it with code, and report findings.',
-        triggers: ['analyze data', 'process data', 'data analysis', 'parse data'],
-        steps: [
-            { tool: 'file_read', paramTemplate: { path: '{{data_file}}' } },
-            { tool: 'code_execute', paramTemplate: { code: '{{analysis_code}}' } },
-        ],
-        category: 'analysis',
-    },
-]
+const SERVER_URL = '/api'
 
 /**
- * Get all skills (built-in + learned).
+ * Parse YAML frontmatter from a SKILL.md file.
  */
-export async function getAllSkills() {
-    const learned = await db.get('hive-skills', [])
-    return [...BUILT_IN_SKILLS, ...learned]
+function parseFrontmatter(content) {
+    const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+    if (!match) return { meta: {}, body: content }
+
+    const meta = {}
+    match[1].split('\n').forEach(line => {
+        const kv = line.match(/^(\w+):\s*(.+)$/)
+        if (kv) meta[kv[1]] = kv[2].trim()
+    })
+
+    return { meta, body: match[2].trim() }
 }
 
 /**
- * Get skills formatted for the system prompt.
+ * Fetch all skills from the server.
+ * The server reads from the skills/ directory.
+ * 
+ * @returns {Promise<Array<{name: string, description: string, body: string}>>}
+ */
+export async function getAllSkills() {
+    try {
+        const response = await fetch(`${SERVER_URL}/skills`)
+        if (!response.ok) throw new Error(`Status ${response.status}`)
+        const data = await response.json()
+        return data.skills || []
+    } catch (error) {
+        console.warn('[Skills] Failed to load from server:', error.message)
+        return []
+    }
+}
+
+/**
+ * Format skills for injection into the system prompt.
+ * Returns a compact summary of each skill.
  */
 export async function getSkillsPromptBlock() {
     const skills = await getAllSkills()
+    if (skills.length === 0) return ''
 
-    return skills.map(s =>
-        `- **${s.name}**: ${s.description} (triggers: ${s.triggers.join(', ')})`
-    ).join('\n')
+    return skills
+        .filter(s => s.name !== '_template')
+        .map(s => `- **${s.name}**: ${s.description}`)
+        .join('\n')
 }
 
 /**
- * Parse LEARN_SKILL directives from agent replies.
- * Format: LEARN_SKILL: name | description | triggers: word1, word2
+ * Get full skill content for a specific skill.
+ * Used when the agent wants to follow a skill's instructions.
  */
-export function parseLearnSkill(reply) {
+export async function getSkillContent(name) {
+    const skills = await getAllSkills()
+    return skills.find(s => s.name === name) || null
+}
+
+/**
+ * Parse CREATE_SKILL directives from agent replies.
+ * 
+ * Format:
+ * CREATE_SKILL: skill-name
+ * description: When to use this skill
+ * ---
+ * # Skill content (markdown)
+ * ...
+ * ---
+ * 
+ * Alternative format (simpler):
+ * LEARN_SKILL: skill-name | description
+ */
+export function parseCreateSkill(reply) {
     if (!reply) return null
 
-    const match = reply.match(/LEARN_SKILL:\s*([^|]+)\|\s*([^|]+)\|\s*triggers?:\s*(.+)/i)
-    if (!match) return null
-
-    return {
-        name: match[1].trim().replace(/\s+/g, '_').toLowerCase(),
-        description: match[2].trim(),
-        triggers: match[3].split(',').map(t => t.trim().toLowerCase()),
-        steps: [], // Will be populated from the tool chain that led to learning
-        category: 'learned',
-        learnedAt: new Date().toISOString(),
-    }
-}
-
-/**
- * Save a newly learned skill.
- */
-export async function saveLearnedSkill(skill) {
-    const skills = await db.get('hive-skills', [])
-
-    // Don't duplicate
-    const exists = skills.find(s => s.name === skill.name)
-    if (exists) {
-        // Update existing
-        Object.assign(exists, skill)
-    } else {
-        skills.push(skill)
-    }
-
-    await db.set('hive-skills', skills)
-    return skill
-}
-
-/**
- * Find skills matching a trigger phrase.
- */
-export async function findMatchingSkills(text) {
-    const skills = await getAllSkills()
-    const lower = text.toLowerCase()
-
-    return skills.filter(skill =>
-        skill.triggers.some(trigger => lower.includes(trigger))
+    // Try CREATE_SKILL format
+    const createMatch = reply.match(
+        /CREATE_SKILL:\s*(\S+)\s*\n\s*description:\s*(.+)\n---\n([\s\S]*?)---/i
     )
+    if (createMatch) {
+        return {
+            name: createMatch[1].trim().toLowerCase().replace(/\s+/g, '-'),
+            description: createMatch[2].trim(),
+            body: createMatch[3].trim(),
+        }
+    }
+
+    // Try LEARN_SKILL format
+    const learnMatch = reply.match(/LEARN_SKILL:\s*([^|]+)\|\s*(.+)/i)
+    if (learnMatch) {
+        return {
+            name: learnMatch[1].trim().toLowerCase().replace(/\s+/g, '-'),
+            description: learnMatch[2].trim(),
+            body: null, // Will be auto-generated
+        }
+    }
+
+    return null
 }
 
 /**
- * Delete a learned skill by name.
+ * Create a new skill by writing a SKILL.md file.
+ * Uses the file_write tool via the server.
  */
-export async function deleteSkill(name) {
-    const skills = await db.get('hive-skills', [])
-    const filtered = skills.filter(s => s.name !== name)
-    await db.set('hive-skills', filtered)
+export async function createSkill(name, description, body) {
+    const skillContent = `---
+name: ${name}
+description: ${description}
+---
+
+${body || `# ${name}\n\n## Overview\n\n${description}\n\n## Notes\n\n- This skill was auto-learned by the agent\n- Edit this file to customize the skill`}
+`
+
+    try {
+        const response = await fetch(`${SERVER_URL}/tools/execute`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tool: 'file_write',
+                params: { path: `skills/${name}/SKILL.md`, content: skillContent },
+            }),
+        })
+        const data = await response.json()
+        return data.success
+    } catch (error) {
+        console.error('[Skills] Failed to create skill:', error)
+        return false
+    }
 }
