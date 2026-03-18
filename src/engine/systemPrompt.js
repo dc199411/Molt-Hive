@@ -15,6 +15,7 @@
 import { getWarmForPrompt, getColdForPrompt, WARM_IN_PROMPT, COLD_IN_PROMPT } from './memory.js'
 import { getToolPromptBlock } from './tools.js'
 import { getSkillsPromptBlock } from './skills.js'
+import { getActiveChildren, getChildResults } from './childAgent.js'
 
 /**
  * Build the full system prompt for an agent.
@@ -28,7 +29,7 @@ import { getSkillsPromptBlock } from './skills.js'
  * @param {string} params.skillsBlock - Pre-formatted skills text
  * @returns {string}
  */
-export function buildSystemPrompt({ agent, allAgents, warmMemory, coldMemory, llmName, includeTools = false, skillsBlock = '' }) {
+export function buildSystemPrompt({ agent, allAgents, warmMemory, coldMemory, llmName, includeTools = false, skillsBlock = '', activeChildren = [], childResults = [], soulBlock = '' }) {
     const sections = []
 
     // ─── Identity ───
@@ -51,6 +52,42 @@ Running on: ${llmName}`)
 You share the Hive brain with these agents:
 ${sibList}
 They can see everything you crystallize and you can see everything they crystallize.`)
+    }
+
+    // ─── Soul ───
+    if (soulBlock) {
+        sections.push(`# SOUL — WHO YOU ARE
+${soulBlock}`)
+    }
+
+    // ─── Child Agent Context (for parents) ───
+    if (activeChildren.length > 0) {
+        const childList = activeChildren.map(c =>
+            `- ${c.name} (${c.role}) — State: ${c.state}, Task: ${c.task}`
+        ).join('\n')
+        sections.push(`# ACTIVE CHILD AGENTS
+You have spawned these child agents:
+${childList}
+You can delegate work: DELEGATE: childName | subtask
+Spawn more: SPAWN_CHILD: name | role | task description`)
+    }
+
+    // ─── Child Results ───
+    if (childResults.length > 0) {
+        const results = childResults.map(r =>
+            `- ${r.childName} (${r.role}): ${r.state} — ${r.result?.summary || 'No summary'}`
+        ).join('\n')
+        sections.push(`# CHILD AGENT RESULTS
+${results}`)
+    }
+
+    // ─── Parent Context (for children) ───
+    if (agent.isChild && agent.parentId) {
+        sections.push(`# YOUR PARENT
+You are a child agent spawned by your parent for a specific task.
+Your assigned task: ${agent.task || 'Not specified'}
+Focus on completing this task, then report TASK_COMPLETE with your results.
+Your parent will synthesize your results with other children's work.`)
     }
 
     // ─── WARM Memory ───
@@ -145,7 +182,18 @@ All sibling agents will have access to it on their next message.
 ## SIGNAL Directive
 When a sibling agent should know something, write:
 SIGNAL [AgentName]: [message]
-This broadcasts directly to that agent's signal bus — no master mediation.
+This broadcasts directly to that agent — no master mediation, no routing delay.
+
+## SPAWN_CHILD Directive
+When you need to delegate a sub-task to a new child agent, write:
+SPAWN_CHILD: name | role | task description
+This spawns a child agent that runs independently and reports back when done.
+Roles: Research, Engineering, Creative, Analysis, Generalist
+Example: SPAWN_CHILD: Scout | Research | Find the top 5 AI frameworks in 2026
+
+## DELEGATE Directive
+To send a follow-up task to an existing child agent:
+DELEGATE: childName | subtask
 
 ## Self-Evolution
 You evolve through molts. Every ${15} runs, your generation increments.
@@ -185,6 +233,21 @@ export async function buildSystemPromptWithMemory({ agent, allAgents, llmName, i
         } catch { /* skills are optional */ }
     }
 
+    // Load child agent context
+    let activeChildren = []
+    let childResults = []
+    try {
+        activeChildren = await getActiveChildren(agent.id)
+        childResults = await getChildResults(agent.id)
+    } catch { /* children are optional */ }
+
+    // Load soul (will be implemented in Phase 3)
+    let soulBlock = ''
+    try {
+        const { getSoulForPrompt } = await import('./soul.js')
+        soulBlock = await getSoulForPrompt(agent.id)
+    } catch { /* soul module not yet available */ }
+
     return buildSystemPrompt({
         agent,
         allAgents,
@@ -193,5 +256,8 @@ export async function buildSystemPromptWithMemory({ agent, allAgents, llmName, i
         llmName,
         includeTools: includeTool,
         skillsBlock,
+        activeChildren,
+        childResults,
+        soulBlock,
     })
 }

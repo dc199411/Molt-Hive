@@ -19,6 +19,10 @@ import ChatArea from './components/ChatArea.jsx'
 import MemoryPanel from './components/MemoryPanel.jsx'
 import NetworkPanel from './components/NetworkPanel.jsx'
 import SpawnModal from './components/SpawnModal.jsx'
+import AgentTree from './components/AgentTree.jsx'
+import SoulEditor from './components/SoulEditor.jsx'
+import TaskPlanViewer from './components/TaskPlanViewer.jsx'
+import SchedulerPanel from './components/SchedulerPanel.jsx'
 
 import { db } from './storage.js'
 import { llmCall } from './llm.js'
@@ -57,6 +61,7 @@ export default function App() {
     const [serverOnline, setServerOnline] = useState(false)
     const [agentMode, setAgentMode] = useState('auto') // 'chat' | 'auto' | 'forever'
     const [loopStatus, setLoopStatus] = useState(null) // {iteration, action}
+    const [agentTree, setAgentTree] = useState([])
     const cancelRef = useRef(false)
 
     const activeAgent = agents.find(a => a.id === activeAgentId) || null
@@ -97,6 +102,13 @@ export default function App() {
 
                     const raw = await getRawHistory(savedAgents[0].id)
                     setHotCount(Math.min(raw.length, HOT_LIMIT))
+
+                    // Load agent tree
+                    try {
+                        const { getAgentTree } = await import('./engine/agentManager.js')
+                        const tree = await getAgentTree()
+                        setAgentTree(tree)
+                    } catch { }
                 }
             } catch (e) {
                 console.error('[MoltHive] Failed to load state:', e)
@@ -420,35 +432,53 @@ Write naturally. Give tasks. Your agent will research, plan, and execute autonom
                         />
 
                         <div className="mh-right-panel" style={{
-                            width: 280, background: C.surface,
+                            width: 300, background: C.surface,
                             borderLeft: `1px solid ${C.border}`,
                             display: 'flex', flexDirection: 'column', flexShrink: 0,
                         }}>
-                            <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}` }}>
+                            <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
                                 {[
-                                    { id: 'memory', label: '◈ Memory' },
-                                    { id: 'network', label: '⊕ Network' },
+                                    { id: 'memory', label: '◈ Mem' },
+                                    { id: 'network', label: '⊕ Net' },
+                                    { id: 'tree', label: '🌳 Tree' },
+                                    { id: 'plans', label: '📋 Plans' },
+                                    { id: 'soul', label: '🧬 Soul' },
+                                    { id: 'schedule', label: '⏰ Sched' },
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
                                         onClick={() => setRightTab(tab.id)}
                                         style={{
-                                            flex: 1, padding: '10px 8px',
+                                            flex: 1, padding: '8px 4px',
                                             background: rightTab === tab.id ? `${C.sky}0a` : 'transparent',
                                             border: 'none',
                                             borderBottom: rightTab === tab.id ? `2px solid ${C.sky}` : '2px solid transparent',
                                             color: rightTab === tab.id ? C.sky : C.textD,
-                                            fontFamily: FM, fontSize: 11, fontWeight: 600,
+                                            fontFamily: FM, fontSize: 9, fontWeight: 600,
                                             cursor: 'pointer', transition: 'all 0.15s',
+                                            minWidth: 46,
                                         }}
                                     >{tab.label}</button>
                                 ))}
                             </div>
                             <div style={{ flex: 1, overflow: 'hidden' }}>
-                                {rightTab === 'memory' ? (
+                                {rightTab === 'memory' && (
                                     <MemoryPanel warmMemory={warmMemory} coldMemory={coldMemory} hotCount={hotCount} hotLimit={HOT_LIMIT} />
-                                ) : (
+                                )}
+                                {rightTab === 'network' && (
                                     <NetworkPanel agents={agents} activeAgentId={activeAgentId} signals={signals} onSelectAgent={handleSelectAgent} />
+                                )}
+                                {rightTab === 'tree' && (
+                                    <AgentTree agents={agents} activeAgentId={activeAgentId} agentTree={agentTree} onSelectAgent={handleSelectAgent} />
+                                )}
+                                {rightTab === 'plans' && (
+                                    <TaskPlanViewer />
+                                )}
+                                {rightTab === 'soul' && (
+                                    <SoulEditor agentId={activeAgentId} agentName={activeAgent?.name} agentRole={activeAgent?.role} />
+                                )}
+                                {rightTab === 'schedule' && (
+                                    <SchedulerPanel activeAgentId={activeAgentId} />
                                 )}
                             </div>
                         </div>

@@ -26,6 +26,9 @@ import {
 import { runCompressionCycle, runCrystallization } from './memory.js'
 import { parseSignals, broadcastSignals } from './signals.js'
 import { evolveAgent } from './evolution.js'
+import { parseSpawnDirectives, parseDelegateDirectives, spawnChildAgent, startChild, completeChildTask, getActiveChildren } from './childAgent.js'
+import { parseSoulDirectives, updateSoul, createSoul, getSoul } from './soul.js'
+import { parsePlanDirectives, updatePlanStep, getCurrentStepPrompt, STEP_STATES } from './taskPlanner.js'
 
 // ─── Constants ───
 const DEFAULT_MAX_ITERATIONS = 20
@@ -75,6 +78,7 @@ export async function runAgentLoop({
         onNeedsHuman = () => { },
         onError = () => { },
         onCheckpoint = () => { },
+        onChildSpawn = () => { },
         shouldContinue = () => true,
     } = callbacks
 
@@ -218,6 +222,77 @@ Rules:
             const tags = []
             if (crystalTopics) tags.push('crystallized')
             if (signalMatches) tags.push('signal sent')
+
+            // ── SPAWN_CHILD directives ──
+            const spawnDirectives = parseSpawnDirectives(reply)
+            for (const directive of spawnDirectives) {
+                try {
+                    const child = await spawnChildAgent(agent.id, {
+                        name: directive.name,
+                        role: directive.role,
+                        task: directive.task,
+                    })
+                    await startChild(agent.id, child.id)
+                    onChildSpawn(child)
+                    tags.push('child spawned')
+
+                    // Run child agent loop in background (non-blocking)
+                    runAgentLoop({
+                        task: directive.task,
+                        agent: child,
+                        allAgents,
+                        llmCfg,
+                        conversationHistory: [],
+                        callbacks: {
+                            onMessage: (text) => onMessage(`  [${child.name}] ${text}`, ['child']),
+                            onComplete: async (summary) => {
+                                await completeChildTask(agent.id, child.id, { success: true, summary })
+                                onMessage(`  ✅ [${child.name}] Completed: ${summary}`, ['child complete'])
+                            },
+                            onError: async (err) => {
+                                await completeChildTask(agent.id, child.id, { success: false, summary: err })
+                                onMessage(`  ❌ [${child.name}] Failed: ${err}`, ['child error'])
+                            },
+                            shouldContinue,
+                        },
+                        maxIterations: 10,
+                    }).catch(() => { }) // Fire and forget — errors handled in callbacks
+                } catch (err) {
+                    onError(`Failed to spawn child ${directive.name}: ${err.message}`)
+                }
+            }
+
+            // ── SOUL_UPDATE directives ──
+            const soulDirectives = parseSoulDirectives(reply)
+            for (const directive of soulDirectives) {
+                const result = updateSoul(agent.id, directive.section, directive.content, agent.trustLevel)
+                if (result.success) {
+                    tags.push('soul evolved')
+                } else {
+                    onMessage(`🛡️ Soul update blocked: ${result.reason}`, ['soul blocked'])
+                }
+            }
+
+            // ── Plan step directives ──
+            if (agent.planId) {
+                const planDirs = parsePlanDirectives(reply)
+                if (planDirs.complete) {
+                    const plans = await db.get('hive-plans', {})
+                    const plan = plans[agent.planId]
+                    if (plan) {
+                        await updatePlanStep(agent.planId, plan.currentStep, STEP_STATES.COMPLETED, planDirs.complete)
+                        tags.push('plan step complete')
+                    }
+                }
+                if (planDirs.failed) {
+                    const plans = await db.get('hive-plans', {})
+                    const plan = plans[agent.planId]
+                    if (plan) {
+                        await updatePlanStep(agent.planId, plan.currentStep, STEP_STATES.FAILED, planDirs.failed)
+                        tags.push('plan step failed')
+                    }
+                }
+            }
 
             onMessage(reply, tags.length > 0 ? tags : undefined)
 

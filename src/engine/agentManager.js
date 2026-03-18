@@ -3,9 +3,11 @@
  * Create, spawn, switch, and manage parent agents.
  * All agents share the same WARM + COLD memory (Hive brain).
  * Each agent has its own chat history, task graph, and evolution state.
+ * Supports parent→child agent hierarchy.
  */
 
 import { db } from '../storage.js'
+import { getChildren } from './childAgent.js'
 
 // ─── Agent Identity Pools ───
 export const AGENT_COLORS = ['#38bdf8', '#34d399', '#a78bfa', '#fbbf24', '#2dd4bf', '#fb7185']
@@ -22,13 +24,16 @@ export const DEFAULT_SUB_AGENTS = ['Research', 'Coder', 'Writer', 'Eval']
  * @param {number} [params.index] - Index for color/icon assignment
  * @returns {Object} New agent object
  */
-export function createAgent({ name, role, index = 0 }) {
+export function createAgent({ name, role, index = 0, parentId = null }) {
     const id = `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     return {
         id,
         name,
         role,
+        parentId,             // null = top-level parent, string = child of parent
+        childIds: [],         // IDs of spawned child agents
+        isChild: !!parentId,  // quick flag for hierarchy checks
         generation: 1,
         runs: 0,
         successRate: 50,
@@ -196,4 +201,24 @@ export async function getHiveConfig() {
  */
 export async function resetHive() {
     await db.clearAll()
+}
+
+/**
+ * Get the full agent tree (parents + their children).
+ *
+ * @returns {Promise<Array>} Array of { agent, children: [...] }
+ */
+export async function getAgentTree() {
+    const agents = await db.get('hive-agents', [])
+    const trees = []
+
+    for (const agent of agents) {
+        const children = await getChildren(agent.id)
+        trees.push({
+            agent,
+            children: children.map(c => ({ agent: c, children: [] })),
+        })
+    }
+
+    return trees
 }

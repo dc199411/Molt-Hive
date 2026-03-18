@@ -294,3 +294,87 @@ export async function getColdForPrompt() {
     const cold = await db.get('hive-cold', [])
     return cold.slice(-COLD_IN_PROMPT)
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  MEMORY SCOPING — Parent↔Child Access Control
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Memory scope levels:
+ *   global  — shared across ALL agents in the hive (default WARM/COLD behavior)
+ *   family  — shared between a parent and its children only
+ *   private — accessible only to the owning agent
+ */
+export const MEMORY_SCOPES = {
+    GLOBAL: 'global',
+    FAMILY: 'family',
+    PRIVATE: 'private',
+}
+
+/**
+ * Store a scoped memory entry.
+ *
+ * @param {string} agentId - The agent storing the memory
+ * @param {string} scope - 'global', 'family', or 'private'
+ * @param {Object} entry - { text, topic?, ts? }
+ * @param {string} [familyId] - Parent agent ID (for family scope)
+ * @returns {Promise<void>}
+ */
+export async function storeScopedMemory(agentId, scope, entry, familyId = null) {
+    const key = scope === MEMORY_SCOPES.FAMILY && familyId
+        ? `hive-memory-family-${familyId}`
+        : scope === MEMORY_SCOPES.PRIVATE
+            ? `hive-memory-private-${agentId}`
+            : 'hive-cold'
+
+    const memories = await db.get(key, [])
+    memories.push({
+        ...entry,
+        agentId,
+        scope,
+        ts: entry.ts || new Date().toISOString(),
+    })
+
+    // Cap at 50 per scoped store
+    if (memories.length > 50) memories.splice(0, memories.length - 50)
+    await db.set(key, memories)
+}
+
+/**
+ * Get scoped memories readable by an agent.
+ * An agent can read: its own private + its family + global.
+ *
+ * @param {string} agentId
+ * @param {string} [parentId] - The agent's parent ID (if it's a child)
+ * @returns {Promise<Array>}
+ */
+export async function getScopedMemories(agentId, parentId = null) {
+    const memories = []
+
+    // Private memories
+    const priv = await db.get(`hive-memory-private-${agentId}`, [])
+    memories.push(...priv)
+
+    // Family memories (from parent's family store)
+    const familyKey = parentId || agentId
+    const family = await db.get(`hive-memory-family-${familyKey}`, [])
+    memories.push(...family)
+
+    // Global memories are already in COLD
+    return memories
+}
+
+/**
+ * Share a memory from child to parent (child→family scope).
+ *
+ * @param {string} childId - Child agent ID
+ * @param {string} parentId - Parent agent ID
+ * @param {string} text - Memory content to share
+ * @returns {Promise<void>}
+ */
+export async function shareMemoryWithParent(childId, parentId, text) {
+    await storeScopedMemory(childId, MEMORY_SCOPES.FAMILY, {
+        text,
+        topic: 'child-report',
+    }, parentId)
+}

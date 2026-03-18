@@ -523,6 +523,127 @@ app.get('/api/skills', (req, res) => {
     }
 })
 
+// ═══════════════════════════════════════════════════════════════
+//  SCHEDULER ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/scheduler/tasks', async (req, res) => {
+    try {
+        // Dynamic import to keep server.js decoupled
+        const { listScheduledTasks } = await import('./src/engine/scheduler.js')
+        const tasks = await listScheduledTasks(req.query.agentId || null)
+        res.json({ tasks, count: tasks.length })
+    } catch (error) {
+        res.json({ tasks: [], count: 0, error: error.message })
+    }
+})
+
+app.post('/api/scheduler/create', async (req, res) => {
+    try {
+        const { scheduleTask } = await import('./src/engine/scheduler.js')
+        const { agentId, cron, task, name } = req.body
+        if (!agentId || !cron || !task) {
+            return res.status(400).json({ error: 'agentId, cron, and task are required' })
+        }
+        const sched = await scheduleTask(agentId, cron, task, { name })
+        res.json({ success: true, schedule: sched })
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+app.post('/api/scheduler/pause', async (req, res) => {
+    try {
+        const { pauseScheduledTask } = await import('./src/engine/scheduler.js')
+        const result = await pauseScheduledTask(req.body.taskId)
+        res.json({ success: !!result, schedule: result })
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+app.post('/api/scheduler/resume', async (req, res) => {
+    try {
+        const { resumeScheduledTask } = await import('./src/engine/scheduler.js')
+        const result = await resumeScheduledTask(req.body.taskId)
+        res.json({ success: !!result, schedule: result })
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+app.post('/api/scheduler/cancel', async (req, res) => {
+    try {
+        const { cancelScheduledTask } = await import('./src/engine/scheduler.js')
+        const result = await cancelScheduledTask(req.body.taskId)
+        res.json({ success: !!result, schedule: result })
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+// ═══════════════════════════════════════════════════════════════
+//  TASK QUEUE ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/tasks', async (req, res) => {
+    try {
+        const { getTaskHistory } = await import('./src/engine/taskQueue.js')
+        const tasks = await getTaskHistory(req.query.agentId || null, req.query.activeOnly === 'true')
+        res.json({ tasks, count: tasks.length })
+    } catch (error) {
+        res.json({ tasks: [], count: 0, error: error.message })
+    }
+})
+
+app.post('/api/tasks/enqueue', async (req, res) => {
+    try {
+        const { enqueueTask } = await import('./src/engine/taskQueue.js')
+        const { agentId, task, priority, mode, maxIterations } = req.body
+        if (!agentId || !task) {
+            return res.status(400).json({ error: 'agentId and task are required' })
+        }
+        const queued = await enqueueTask(agentId, task, { priority, mode, maxIterations })
+        res.json({ success: true, task: queued })
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message })
+    }
+})
+
+app.get('/api/tasks/resumable', async (req, res) => {
+    try {
+        const { getResumableTasks } = await import('./src/engine/taskQueue.js')
+        const tasks = await getResumableTasks()
+        res.json({ tasks, count: tasks.length })
+    } catch (error) {
+        res.json({ tasks: [], count: 0, error: error.message })
+    }
+})
+
+// ═══════════════════════════════════════════════════════════════
+//  AGENT HIERARCHY ENDPOINTS
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/agents/tree', async (req, res) => {
+    try {
+        const { getAgentTree } = await import('./src/engine/agentManager.js')
+        const tree = await getAgentTree()
+        res.json({ tree })
+    } catch (error) {
+        res.json({ tree: [], error: error.message })
+    }
+})
+
+app.get('/api/agents/:agentId/children', async (req, res) => {
+    try {
+        const { getChildren } = await import('./src/engine/childAgent.js')
+        const children = await getChildren(req.params.agentId)
+        res.json({ children, count: children.length })
+    } catch (error) {
+        res.json({ children: [], count: 0, error: error.message })
+    }
+})
+
 // ─── Start Server ───
 app.listen(PORT, () => {
     // Count skills
@@ -537,5 +658,17 @@ app.listen(PORT, () => {
     console.log(`   Working directory: ${CONFIG.workingDir}`)
     console.log(`   Available tools: ${Object.keys(TOOLS).join(', ')}`)
     console.log(`   Skills loaded: ${skillCount} (from skills/)`)
+    console.log(`   API endpoints: /api/health, /api/tools/*, /api/skills, /api/scheduler/*, /api/tasks/*, /api/agents/*`)
     console.log(`   Health: http://localhost:${PORT}/api/health\n`)
+
+    // Start scheduler ticker (check for due tasks every 60s)
+    setInterval(async () => {
+        try {
+            const { schedulerTick } = await import('./src/engine/scheduler.js')
+            const dueTasks = await schedulerTick()
+            if (dueTasks.length > 0) {
+                console.log(`[Scheduler] ${dueTasks.length} task(s) due:`, dueTasks.map(t => t.name).join(', '))
+            }
+        } catch { /* scheduler optional */ }
+    }, 60000)
 })

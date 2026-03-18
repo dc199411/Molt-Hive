@@ -1,7 +1,8 @@
 /**
  * Molt-Hive LLM Bridge
- * Unified interface for 5 LLM providers: Anthropic, OpenAI, Groq, Mistral, Ollama.
+ * Unified interface for 7+ LLM providers.
  * Single llmCall() function handles all format differences.
+ * New providers can be added via registerProvider().
  * Full error handling with user-facing error messages.
  */
 
@@ -50,6 +51,26 @@ export const PROVIDERS = [
         color: '#6366f1',
     },
     {
+        id: 'gemini',
+        name: 'Google Gemini',
+        models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'],
+        url: 'https://generativelanguage.googleapis.com/v1beta/models',
+        fmt: 'gemini',
+        keyHeader: null, // key goes in query param
+        local: false,
+        color: '#4285f4',
+    },
+    {
+        id: 'deepseek',
+        name: 'Deepseek',
+        models: ['deepseek-chat', 'deepseek-reasoner'],
+        url: 'https://api.deepseek.com/v1/chat/completions',
+        fmt: 'openai',
+        keyHeader: 'Authorization',
+        local: false,
+        color: '#0ea5e9',
+    },
+    {
         id: 'ollama',
         name: 'Ollama (local)',
         models: ['llama3.2', 'mistral', 'codellama', 'phi3', 'deepseek-r1', 'gemma2'],
@@ -62,6 +83,42 @@ export const PROVIDERS = [
 ]
 
 /**
+ * Register a new LLM provider at runtime.
+ * Enables users to add custom OpenAI-compatible endpoints.
+ *
+ * @param {Object} config - Provider configuration
+ * @param {string} config.id - Unique provider ID
+ * @param {string} config.name - Display name
+ * @param {string[]} config.models - Available model names
+ * @param {string} config.url - API endpoint URL
+ * @param {string} [config.fmt='openai'] - Format: 'openai', 'anthropic', 'ollama', 'gemini'
+ * @param {string} [config.keyHeader='Authorization'] - Header for API key
+ * @param {boolean} [config.local=false] - Is this a local provider?
+ * @param {string} [config.color='#888'] - UI color
+ */
+export function registerProvider(config) {
+    const existing = PROVIDERS.findIndex(p => p.id === config.id)
+    const provider = {
+        id: config.id,
+        name: config.name,
+        models: config.models || [],
+        url: config.url,
+        fmt: config.fmt || 'openai',
+        keyHeader: config.keyHeader || 'Authorization',
+        local: config.local || false,
+        color: config.color || '#888888',
+    }
+
+    if (existing !== -1) {
+        PROVIDERS[existing] = provider
+    } else {
+        PROVIDERS.push(provider)
+    }
+
+    return provider
+}
+
+/**
  * Get the environment variable key for a provider, if set.
  * @param {string} providerId - Provider ID (e.g. 'anthropic')
  * @returns {string} The env var value or empty string
@@ -72,6 +129,8 @@ export function getEnvKey(providerId) {
         openai: 'VITE_OPENAI_API_KEY',
         groq: 'VITE_GROQ_API_KEY',
         mistral: 'VITE_MISTRAL_API_KEY',
+        gemini: 'VITE_GEMINI_API_KEY',
+        deepseek: 'VITE_DEEPSEEK_API_KEY',
     }
 
     const varName = envMap[providerId]
@@ -180,6 +239,28 @@ function buildOllamaRequest({ model, system, messages }) {
 }
 
 /**
+ * Build the request for Google Gemini's API.
+ */
+function buildGeminiRequest({ model, system, messages, maxTokens, apiKey }) {
+    return {
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: {
+            system_instruction: { parts: [{ text: system }] },
+            contents: messages.map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }],
+            })),
+            generationConfig: {
+                maxOutputTokens: maxTokens,
+            },
+        },
+    }
+}
+
+/**
  * Extract the reply text from a provider's response.
  */
 function extractReply(fmt, data) {
@@ -192,6 +273,11 @@ function extractReply(fmt, data) {
     if (fmt === 'openai') {
         if (data?.choices?.[0]?.message?.content) return data.choices[0].message.content
         throw new Error('Unexpected OpenAI response format')
+    }
+
+    if (fmt === 'gemini') {
+        if (data?.candidates?.[0]?.content?.parts?.[0]?.text) return data.candidates[0].content.parts[0].text
+        throw new Error('Unexpected Gemini response format')
     }
 
     if (fmt === 'ollama') {
@@ -276,6 +362,9 @@ export async function llmCall({ provider: providerId, apiKey, model, system, mes
             break
         case 'ollama':
             request = buildOllamaRequest({ model, system, messages })
+            break
+        case 'gemini':
+            request = buildGeminiRequest({ model, system, messages, maxTokens, apiKey })
             break
         default:
             throw new Error(`Unknown format: ${provider.fmt}`)
