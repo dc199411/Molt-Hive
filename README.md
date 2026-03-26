@@ -1,4 +1,5 @@
 # 🧠 Molt Hive
+<a href="https://imgbb.com/"><img src="https://i.ibb.co/bg8gCWHQ/molt-hive-logo.jpg" alt="molt hive logo" border="0"></a>
 
 > **Your autonomous AI agent with infinite memory, tool execution, self-learning skills, and hivemind capabilities.**
 > Fork → install → `npm start`. Running in under 5 minutes.
